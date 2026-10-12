@@ -1,0 +1,703 @@
+# Renta fija argentina: parámetros del análisis + términos de cada instrumento.
+#
+# Convenciones:
+# - Todos los flujos son por 100 VN ORIGINALES (así cotiza BYMA) y el precio también es por 100 VN.
+# - `fuente` dice de dónde salen los términos y `confianza` cuánto confiamos:
+#     alta  = prospecto/decreto + cronograma cruzado entre fuentes independientes + TIR validada contra el mercado.
+#     media = una fuente pública secundaria (repo open source / API) y validado contra precios o reportes.
+#     baja  = calibrado (p.ej. base CER despejada de la TIR real publicada). Revisar contra el prospecto.
+# - Lecaps/Boncaps que no estén acá se completan solas con api.argentinadatos.com (pago final derivado de precio y TEA).
+# - Duales TAMAR/CER, dollar linked, DICP/PARP/CUAP: NO se incluyen (términos con opcionalidad o capitalización
+#   que no pudimos verificar de forma confiable).
+
+parametros:
+  plazo_liquidacion: 1              # T+1 hábil (BYMA, 24hs)
+  rezago_cer_habiles: 10            # el CER que aplica es el de 10 días hábiles antes de la liquidación/pago
+  inflacion_esperada_mensual: 0.018 # supuesto por defecto (pisar con REM/expectativas al llamar)
+  devaluacion_esperada_mensual: 0.012
+  dias_min_curva: 20                # instrumentos con menos días al vencimiento no entran al ajuste de curva
+  min_puntos_ns: 5                  # con menos puntos se ajusta curva logarítmica en vez de Nelson-Siegel
+  rico_barato_pb: 50                # |spread vs curva| mayor a esto -> "barato" / "caro"
+  score:
+    pesos: {rendimiento: 0.40, valor_relativo: 0.35, liquidez: 0.25}
+    spread_saturacion_pb: 150       # spread que satura el componente de valor relativo (0 o 100)
+    volumen_ref_ars: 5.0e+9         # volumen efectivo diario (ARS) que da liquidez 100
+    volumen_min_ars: 1.0e+6         # debajo de esto liquidez 0
+  # Filtro de calidad (src/renta_fija/calidad.py): lo que no pasa queda con score_rf vacío y NO se compra.
+  calidad:
+    tir_rango: {usd: [-0.05, 0.30], nominal_ars: [0.0, 1.50], real_cer: [-0.20, 0.40]}
+    dias_min_compra: 20             # lo que vence antes no se compra (TIR ruidosa, cerca del corte de negociación)
+    volumen_min_compra_ars: 2.0e+7  # volumen efectivo diario mínimo
+    spread_puntas_max: 0.03         # (ask-bid)/medio de la especie en pesos
+    spread_curva_max_pb: 400        # más lejos de la curva que esto = dato dudoso
+    confianza_excluida: [baja]      # bases CER calibradas: error de ~2% en precio (±300 pb de TIR en 6 meses)
+    exigir_operado_hoy: true        # data912 repite el último cierre aunque no opere: sin volumen = precio viejo
+    dias_corte_cupon: 5             # días corridos antes de un pago: el cupón ya puede estar cortado (ex-cupón)
+  cache_ttl_min: 20                 # las cotizaciones del día se vuelven a pedir si el caché tiene más de esto
+  fuentes:
+    data912: https://data912.com
+    argentinadatos: https://api.argentinadatos.com
+    bcra_cer: https://api.bcra.gob.ar/estadisticas/v4.0/monetarias/30
+  timeout_s: 20
+
+# ---------------------------------------------------------------------------------------------------------------
+# Cronogramas del canje 2020 (pagos 9 ene / 9 jul). Cupón = % anual vigente desde la fecha (step-up).
+# Fuente: Decreto 701/2020 (Globales, ley NY) y Ley 27.556 (Bonares, ley local), cronogramas cruzados con
+# github.com/PabloPoletti/cotizaciones scripts/cronogramas_canje2020.py y arisbdar/rendimientos-ar config.json;
+# TIR recalculada vs. Reporte Gorostiaga n°212 (precios 18/09/2026, fig. 7).
+canje_2020:
+  c29: &c29
+    emision: 2020-09-04
+    fechas: {primera: 2021-01-09, meses: 6}
+    cupones: [[2020-09-04, 1.0]]
+    amortizacion: {inicio: 2025-01-09, cuotas: 10}
+    vencimiento: 2029-07-09
+  c30: &c30
+    emision: 2020-09-04
+    fechas: {primera: 2021-07-09, meses: 6}
+    cupones: [[2020-09-04, 0.125], [2021-07-09, 0.5], [2023-07-09, 0.75], [2027-07-09, 1.75]]
+    amortizacion: {inicio: 2024-07-09, cuotas: 13, primera_pct: 4.0}
+    vencimiento: 2030-07-09
+  c35: &c35
+    emision: 2020-09-04
+    fechas: {primera: 2021-07-09, meses: 6}
+    cupones: [[2020-09-04, 0.125], [2021-07-09, 1.125], [2022-07-09, 1.5], [2023-07-09, 3.625],
+              [2024-07-09, 4.125], [2027-07-09, 4.75], [2028-07-09, 5.0]]
+    amortizacion: {inicio: 2031-01-09, cuotas: 10}
+    vencimiento: 2035-07-09
+  c38: &c38
+    emision: 2020-09-04
+    fechas: {primera: 2021-07-09, meses: 6}
+    cupones: [[2020-09-04, 0.125], [2021-07-09, 2.0], [2022-07-09, 3.875], [2023-07-09, 4.25], [2024-07-09, 5.0]]
+    amortizacion: {inicio: 2027-07-09, cuotas: 22}
+    vencimiento: 2038-01-09
+  c41: &c41
+    emision: 2020-09-04
+    fechas: {primera: 2021-07-09, meses: 6}
+    cupones: [[2020-09-04, 0.125], [2021-07-09, 2.5], [2022-07-09, 3.5], [2029-07-09, 4.875]]
+    amortizacion: {inicio: 2028-01-09, cuotas: 28}
+    vencimiento: 2041-07-09
+  c46: &c46
+    emision: 2020-09-04
+    fechas: {primera: 2021-07-09, meses: 6}
+    cupones: [[2020-09-04, 0.125], [2021-07-09, 1.125], [2022-07-09, 1.5], [2023-07-09, 3.625],
+              [2024-07-09, 4.125], [2027-07-09, 4.375], [2028-07-09, 5.0]]
+    amortizacion: {inicio: 2025-01-09, cuotas: 44}
+    vencimiento: 2046-07-09
+
+instrumentos:
+  # ----------------------------------------------------------------------------- soberanos hard dollar
+  GD29: {<<: *c29, nombre: Global 2029, clase: soberano_usd, familia: global, ley: NY, par: AL29, emisor: Tesoro,
+         moneda: USD, fuente: "Decreto 701/2020", confianza: alta}
+  AL29: {<<: *c29, nombre: Bonar 2029, clase: soberano_usd, familia: bonar, ley: local, par: GD29, emisor: Tesoro,
+         moneda: USD, fuente: "Ley 27.556", confianza: alta}
+  GD30: {<<: *c30, nombre: Global 2030, clase: soberano_usd, familia: global, ley: NY, par: AL30, emisor: Tesoro,
+         moneda: USD, fuente: "Decreto 701/2020", confianza: alta}
+  AL30: {<<: *c30, nombre: Bonar 2030, clase: soberano_usd, familia: bonar, ley: local, par: GD30, emisor: Tesoro,
+         moneda: USD, fuente: "Ley 27.556", confianza: alta}
+  GD35: {<<: *c35, nombre: Global 2035, clase: soberano_usd, familia: global, ley: NY, par: AL35, emisor: Tesoro,
+         moneda: USD, fuente: "Decreto 701/2020", confianza: alta}
+  AL35: {<<: *c35, nombre: Bonar 2035, clase: soberano_usd, familia: bonar, ley: local, par: GD35, emisor: Tesoro,
+         moneda: USD, fuente: "Ley 27.556", confianza: alta}
+  GD38: {<<: *c38, nombre: Global 2038, clase: soberano_usd, familia: global, ley: NY, par: AE38, emisor: Tesoro,
+         moneda: USD, fuente: "Decreto 701/2020", confianza: alta}
+  AE38: {<<: *c38, nombre: Bonar 2038, clase: soberano_usd, familia: bonar, ley: local, par: GD38, emisor: Tesoro,
+         moneda: USD, fuente: "Ley 27.556", confianza: alta}
+  GD41: {<<: *c41, nombre: Global 2041, clase: soberano_usd, familia: global, ley: NY, par: AL41, emisor: Tesoro,
+         moneda: USD, fuente: "Decreto 701/2020", confianza: alta}
+  AL41: {<<: *c41, nombre: Bonar 2041, clase: soberano_usd, familia: bonar, ley: local, par: GD41, emisor: Tesoro,
+         moneda: USD, fuente: "Ley 27.556", confianza: alta}
+  GD46: {<<: *c46, nombre: Global 2046, clase: soberano_usd, familia: global, ley: NY, emisor: Tesoro,
+         moneda: USD,
+         fuente: "Decreto 701/2020; cupón 4,125% confirmado por flujos de RenzoTenaglia/monitor-renta-fija-arg (el Reporte Gorostiaga lista 3,75%: error del reporte)",
+         confianza: alta}
+
+  # ----------------------------------------------------------------------------- tasa fija en pesos
+  # Pago final por 100 VN. Fuente: arisbdar/rendimientos-ar (BYMA) cruzado con el pago final implícito en
+  # precio+TEA de api.argentinadatos.com/v1/finanzas/letras (diferencias < 0,01%).
+  S30O6: {nombre: Lecap oct-26, clase: lecap, familia: tasa_fija, moneda: ARS, vencimiento: 2026-10-30,
+          pago_final: 135.278, fuente: "BYMA vía rendimientos-ar + argentinadatos", confianza: alta}
+  S13N6: {nombre: Lecap nov-26, clase: lecap, familia: tasa_fija, moneda: ARS, vencimiento: 2026-11-13,
+          pago_final: 109.65, fuente: "BYMA vía rendimientos-ar + argentinadatos", confianza: alta}
+  S30N6: {nombre: Lecap nov-26, clase: lecap, familia: tasa_fija, moneda: ARS, vencimiento: 2026-11-30,
+          pago_final: 129.888, fuente: "BYMA vía rendimientos-ar + argentinadatos", confianza: alta}
+  S16O6: {nombre: Lecap oct-26, clase: lecap, familia: tasa_fija, moneda: ARS, vencimiento: 2026-10-16,
+          pago_final: 105.273, fuente: "derivado de precio+TEA de argentinadatos (11/10/2026)", confianza: media}
+  S29E7: {nombre: Lecap ene-27, clase: lecap, familia: tasa_fija, moneda: ARS, vencimiento: 2027-01-29,
+          pago_final: 111.686, fuente: "derivado de precio+TEA de argentinadatos (11/10/2026)", confianza: media}
+  T15E7: {nombre: Boncap ene-27, clase: boncap, familia: tasa_fija, moneda: ARS, vencimiento: 2027-01-15,
+          pago_final: 161.104, fuente: "BYMA vía rendimientos-ar + argentinadatos", confianza: alta}
+  T30A7: {nombre: Boncap abr-27, clase: boncap, familia: tasa_fija, moneda: ARS, vencimiento: 2027-04-30,
+          pago_final: 157.341, fuente: "BYMA vía rendimientos-ar + argentinadatos", confianza: alta}
+  T31Y7: {nombre: Boncap may-27, clase: boncap, familia: tasa_fija, moneda: ARS, vencimiento: 2027-05-31,
+          pago_final: 152.185,
+          fuente: "argentinadatos (rendimientos-ar dice 151.563; elegimos el consistente con la TIR del Reporte Gorostiaga)",
+          confianza: media}
+  T30J7: {nombre: Boncap jun-27, clase: boncap, familia: tasa_fija, moneda: ARS, vencimiento: 2027-06-30,
+          pago_final: 156.037, fuente: "BYMA vía rendimientos-ar + argentinadatos", confianza: alta}
+  TO26:
+    nombre: Bonte 2026 (15,5%)
+    clase: boncap
+    familia: tasa_fija
+    moneda: ARS
+    vencimiento: 2026-10-19
+    flujos: [[2026-04-17, 7.75, 0.0], [2026-10-19, 7.75, 100.0]]
+    fuente: "Bonte 2026: cupón 15,5% semestral, bullet 17/10/2026 (pago 19/10); Reporte Gorostiaga fig. 11 + argentinadatos"
+    confianza: alta
+  TY30P:
+    nombre: Bonte 2030 (29,5%)
+    clase: boncap
+    familia: tasa_fija
+    moneda: ARS
+    emision: 2025-05-30
+    fechas: {primera: 2025-11-30, meses: 6}
+    cupones: [[2025-05-30, 29.5]]
+    amortizacion: {inicio: 2030-05-30, cuotas: 1}
+    vencimiento: 2030-05-30
+    fuente: "Bonte 2030: cupón 29,5% semestral (30/5 y 30/11), bullet 30/05/2030; Reporte Gorostiaga fig. 11; paridad argentinadatos"
+    confianza: media
+
+  # ----------------------------------------------------------------------------- CER (flujos reales x CER/cer_base)
+  # Bases CER: arisbdar/rendimientos-ar (confianza media, TIR real validada contra Reporte Gorostiaga fig. 9 con
+  # CER de 10 hábiles antes de la liquidación). Las "baja" se despejaron de la TIR real del reporte (18/09/2026).
+  TX26:
+    nombre: Boncer 2026 (CER + 2%)
+    clase: cer
+    familia: cer
+    moneda: ARS
+    cer_base: 22.544
+    emision: 2020-11-09
+    fechas: {primera: 2021-05-09, meses: 6}
+    cupones: [[2020-11-09, 2.0]]
+    amortizacion: {inicio: 2024-11-09, cuotas: 5}
+    vencimiento: 2026-11-09
+    fuente: "rendimientos-ar (cronograma y base CER) + Reporte Gorostiaga fig. 9"
+    confianza: media
+  TX28:
+    nombre: Boncer 2028 (CER + 2,25%)
+    clase: cer
+    familia: cer
+    moneda: ARS
+    cer_base: 22.544
+    emision: 2020-11-09
+    fechas: {primera: 2021-05-09, meses: 6}
+    cupones: [[2020-11-09, 2.25]]
+    amortizacion: {inicio: 2024-05-09, cuotas: 10}
+    vencimiento: 2028-11-09
+    fuente: "rendimientos-ar (cronograma y base CER) + Reporte Gorostiaga fig. 9"
+    confianza: media
+  TX31:
+    nombre: Boncer 2031 (CER + 2,5%)
+    clase: cer
+    familia: cer
+    moneda: ARS
+    cer_base: 46.913
+    emision: 2022-05-30
+    fechas: {primera: 2022-11-30, meses: 6}
+    cupones: [[2022-05-30, 2.5]]
+    amortizacion: {inicio: 2027-05-30, cuotas: 10}
+    vencimiento: 2031-11-30
+    fuente: "rendimientos-ar (cronograma y base CER)"
+    confianza: media
+  TZXO6: {nombre: Boncer cero oct-26, clase: cer, familia: cer, moneda: ARS, vencimiento: 2026-10-30, pago_final: 100,
+          cer_base: 480.1526, fuente: "rendimientos-ar + Gorostiaga fig. 9", confianza: media}
+  X30N6: {nombre: Lecer nov-26, clase: cer, familia: cer, moneda: ARS, vencimiento: 2026-11-30, pago_final: 100,
+          cer_base: 659.6789, fuente: "rendimientos-ar + Gorostiaga fig. 9", confianza: media}
+  TZXD6: {nombre: Boncer cero dic-26, clase: cer, familia: cer, moneda: ARS, vencimiento: 2026-12-15, pago_final: 100,
+          cer_base: 271.0476, fuente: "rendimientos-ar + Gorostiaga fig. 9", confianza: media}
+  TZXM7: {nombre: Boncer cero mar-27, clase: cer, familia: cer, moneda: ARS, vencimiento: 2027-03-31, pago_final: 100,
+          cer_base: 361.3176, fuente: "rendimientos-ar + Gorostiaga fig. 9", confianza: media}
+  TZXA7: {nombre: Boncer cero abr-27, clase: cer, familia: cer, moneda: ARS, vencimiento: 2027-04-30, pago_final: 100,
+          cer_base: 644.157, fuente: "calibrado con TIR real Gorostiaga fig. 9 (18/09/2026)", confianza: baja}
+  TZXY7: {nombre: Boncer cero may-27, clase: cer, familia: cer, moneda: ARS, vencimiento: 2027-05-31, pago_final: 100,
+          cer_base: 648.0631, fuente: "calibrado con TIR real Gorostiaga fig. 9 (18/09/2026)", confianza: baja}
+  TZX27: {nombre: Boncer cero jun-27, clase: cer, familia: cer, moneda: ARS, vencimiento: 2027-06-30, pago_final: 100,
+          cer_base: 200.388, fuente: "rendimientos-ar + Gorostiaga fig. 9", confianza: media}
+  TZXS7: {nombre: Boncer cero sep-27, clase: cer, familia: cer, moneda: ARS, vencimiento: 2027-09-30, pago_final: 100,
+          cer_base: 722.6984, fuente: "calibrado con TIR real Gorostiaga fig. 9 (18/09/2026)", confianza: baja}
+  TZXO7: {nombre: Boncer cero oct-27, clase: cer, familia: cer, moneda: ARS, vencimiento: 2027-10-29, pago_final: 100,
+          cer_base: 788.3336, fuente: "calibrado con TIR real Gorostiaga fig. 9 (18/09/2026)", confianza: baja}
+  TZXD7: {nombre: Boncer cero dic-27, clase: cer, familia: cer, moneda: ARS, vencimiento: 2027-12-15, pago_final: 100,
+          cer_base: 271.0476, fuente: "rendimientos-ar + Gorostiaga fig. 9", confianza: media}
+  TZXM8: {nombre: Boncer cero mar-28, clase: cer, familia: cer, moneda: ARS, vencimiento: 2028-03-31, pago_final: 100,
+          cer_base: 726.2978, fuente: "calibrado con TIR real Gorostiaga fig. 9 (18/09/2026)", confianza: baja}
+  TZX28: {nombre: Boncer cero jun-28, clase: cer, familia: cer, moneda: ARS, vencimiento: 2028-06-30, pago_final: 100,
+          cer_base: 200.388, fuente: "rendimientos-ar + Gorostiaga fig. 9", confianza: media}
+  TZXS8: {nombre: Boncer cero sep-28, clase: cer, familia: cer, moneda: ARS, vencimiento: 2028-09-30, pago_final: 100,
+          cer_base: 721.2028, fuente: "calibrado con TIR real Gorostiaga fig. 9 (18/09/2026)", confianza: baja}
+  TZXD8: {nombre: Boncer cero dic-28, clase: cer, familia: cer, moneda: ARS, vencimiento: 2028-12-15, pago_final: 100,
+          cer_base: 791.0409, fuente: "calibrado con TIR real Gorostiaga fig. 9 (18/09/2026)", confianza: baja}
+  TZXM9: {nombre: Boncer cero mar-29, clase: cer, familia: cer, moneda: ARS, vencimiento: 2029-03-31, pago_final: 100,
+          cer_base: 726.0777, fuente: "calibrado con TIR real Gorostiaga fig. 9 (18/09/2026)", confianza: baja}
+
+  # ----------------------------------------------------------------------------- flujos explícitos
+  # Bonares 2025-26 (AO27/AO28/AO29/AN29), Bopreal y ONs: cronograma por fecha. En las ONs el split
+  # interés/amortización se infirió del flujo total (cupón del primer pago x residual) -> confianza media.
+  AO27:
+    nombre: "Bonar 2027 (6% mensual)"
+    clase: soberano_usd
+    familia: bonar
+    ley: local
+    emisor: Tesoro
+    moneda: USD
+    vencimiento: 2027-10-30
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; cupón y vencimiento cruzados con Reporte Gorostiaga n°212 (fig. 7)"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-04-30, 0.5, 0.0]
+      - [2026-05-29, 0.4833, 0.0]
+      - [2026-06-30, 0.5167, 0.0]
+      - [2026-07-31, 0.5, 0.0]
+      - [2026-08-31, 0.5, 0.0]
+      - [2026-09-30, 0.5, 0.0]
+      - [2026-10-30, 0.5, 0.0]
+      - [2026-11-30, 0.5, 0.0]
+      - [2026-12-31, 0.5, 0.0]
+      - [2027-01-29, 0.5, 0.0]
+      - [2027-02-26, 0.5, 0.0]
+      - [2027-03-31, 0.5, 0.0]
+      - [2027-04-30, 0.5, 0.0]
+      - [2027-05-31, 0.5, 0.0]
+      - [2027-06-30, 0.5, 0.0]
+      - [2027-07-30, 0.5, 0.0]
+      - [2027-08-31, 0.5, 0.0]
+      - [2027-09-30, 0.5, 0.0]
+      - [2027-10-30, 0.5, 100.0]
+  AO28:
+    nombre: "Bonar 2028 (6% mensual)"
+    clase: soberano_usd
+    familia: bonar
+    ley: local
+    emisor: Tesoro
+    moneda: USD
+    vencimiento: 2028-10-31
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; cupón y vencimiento cruzados con Reporte Gorostiaga n°212 (fig. 7)"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-04-30, 0.5, 0.0]
+      - [2026-05-29, 0.48, 0.0]
+      - [2026-06-30, 0.52, 0.0]
+      - [2026-07-31, 0.5, 0.0]
+      - [2026-08-31, 0.5, 0.0]
+      - [2026-09-30, 0.5, 0.0]
+      - [2026-10-30, 0.5, 0.0]
+      - [2026-11-30, 0.5, 0.0]
+      - [2026-12-30, 0.5, 0.0]
+      - [2027-01-29, 0.48, 0.0]
+      - [2027-02-26, 0.45, 0.0]
+      - [2027-03-31, 0.58, 0.0]
+      - [2027-04-30, 0.5, 0.0]
+      - [2027-05-31, 0.5, 0.0]
+      - [2027-06-30, 0.5, 0.0]
+      - [2027-07-30, 0.5, 0.0]
+      - [2027-08-31, 0.5, 0.0]
+      - [2027-09-30, 0.5, 0.0]
+      - [2027-10-29, 0.48, 0.0]
+      - [2027-11-30, 0.52, 0.0]
+      - [2027-12-30, 0.5, 0.0]
+      - [2028-01-31, 0.5, 0.0]
+      - [2028-02-29, 0.48, 0.0]
+      - [2028-03-31, 0.5, 0.0]
+      - [2028-04-28, 0.47, 0.0]
+      - [2028-05-31, 0.55, 0.0]
+      - [2028-06-30, 0.5, 0.0]
+      - [2028-07-31, 0.5, 0.0]
+      - [2028-08-31, 0.5, 0.0]
+      - [2028-09-29, 0.48, 0.0]
+      - [2028-10-31, 0.53, 100.0]
+  AO29:
+    nombre: "Bonar 2029 (6% mensual)"
+    clase: soberano_usd
+    familia: bonar
+    ley: local
+    emisor: Tesoro
+    moneda: USD
+    vencimiento: 2029-10-31
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; cupón y vencimiento cruzados con Reporte Gorostiaga n°212 (fig. 7)"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-08-31, 0.73, 0.0]
+      - [2026-09-30, 0.5, 0.0]
+      - [2026-10-30, 0.5, 0.0]
+      - [2026-11-30, 0.5, 0.0]
+      - [2026-12-30, 0.5, 0.0]
+      - [2027-01-29, 0.48, 0.0]
+      - [2027-02-26, 0.45, 0.0]
+      - [2027-03-31, 0.58, 0.0]
+      - [2027-04-30, 0.5, 0.0]
+      - [2027-05-31, 0.5, 0.0]
+      - [2027-06-30, 0.5, 0.0]
+      - [2027-07-30, 0.5, 0.0]
+      - [2027-08-31, 0.5, 0.0]
+      - [2027-09-30, 0.5, 0.0]
+      - [2027-10-29, 0.48, 0.0]
+      - [2027-11-30, 0.52, 0.0]
+      - [2027-12-30, 0.5, 0.0]
+      - [2028-01-31, 0.5, 0.0]
+      - [2028-02-29, 0.48, 0.0]
+      - [2028-03-31, 0.53, 0.0]
+      - [2028-04-28, 0.47, 0.0]
+      - [2028-05-31, 0.55, 0.0]
+      - [2028-06-30, 0.5, 0.0]
+      - [2028-07-31, 0.5, 0.0]
+      - [2028-08-31, 0.5, 0.0]
+      - [2028-09-29, 0.48, 0.0]
+      - [2028-10-31, 0.53, 0.0]
+      - [2028-11-30, 0.5, 0.0]
+      - [2028-12-29, 0.48, 0.0]
+      - [2029-01-31, 0.53, 0.0]
+      - [2029-02-28, 0.47, 0.0]
+      - [2029-03-28, 0.5, 0.0]
+      - [2029-04-30, 0.53, 0.0]
+      - [2029-05-31, 0.5, 0.0]
+      - [2029-06-29, 0.48, 0.0]
+      - [2029-07-31, 0.53, 0.0]
+      - [2029-08-31, 0.5, 0.0]
+      - [2029-09-28, 0.47, 0.0]
+      - [2029-10-31, 0.55, 100.0]
+  AN29:
+    nombre: "Bonar 2029N (6,5% semestral)"
+    clase: soberano_usd
+    familia: bonar
+    ley: local
+    emisor: Tesoro
+    moneda: USD
+    vencimiento: 2029-11-30
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; cupón y vencimiento cruzados con Reporte Gorostiaga n°212 (fig. 7)"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-06-01, 3.0333, 0.0]
+      - [2026-11-30, 3.25, 0.0]
+      - [2027-05-31, 3.25, 0.0]
+      - [2027-11-30, 3.25, 0.0]
+      - [2028-05-30, 3.25, 0.0]
+      - [2028-11-30, 3.25, 0.0]
+      - [2029-05-30, 3.25, 0.0]
+      - [2029-11-30, 3.25, 100.0]
+  BPD7:
+    nombre: "BOPREAL Serie 1 estrategia D"
+    clase: soberano_usd
+    familia: bopreal
+    ley: local
+    emisor: BCRA
+    moneda: USD
+    simbolo_ars: BPOD7
+    simbolo_usd: BPD7D
+    vencimiento: 2027-10-31
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json (5% semestral, amortiza 50/50 abr y oct-2027)"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-04-30, 2.5, 0.0]
+      - [2026-11-02, 2.5, 0.0]
+      - [2027-04-30, 2.5, 50.0]
+      - [2027-11-01, 1.25, 50.0]
+  YM34:
+    nombre: "ON YPF 2034"
+    clase: on_usd
+    familia: corporativo
+    ley: local
+    emisor: "YPF"
+    moneda: USD
+    simbolo_ars: YM34O
+    simbolo_usd: YM34D
+    vencimiento: 2034-01-17
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; interés/amortización separados por inferencia"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-07-17, 4.125, 0.0]
+      - [2027-01-18, 4.125, 0.0]
+      - [2027-07-19, 4.125, 0.0]
+      - [2028-01-17, 4.125, 0.0]
+      - [2028-07-17, 4.125, 0.0]
+      - [2029-01-17, 4.125, 0.0]
+      - [2029-07-17, 4.125, 0.0]
+      - [2030-01-17, 4.125, 0.0]
+      - [2030-07-17, 4.125, 0.0]
+      - [2031-01-17, 4.125, 0.0]
+      - [2031-07-17, 4.125, 0.0]
+      - [2032-01-19, 4.125, 30.0]
+      - [2032-07-19, 2.8875, 0.0]
+      - [2033-01-17, 2.8875, 30.0]
+      - [2033-07-18, 1.65, 0.0]
+      - [2034-01-17, 1.65, 40.0]
+  YMCX:
+    nombre: "ON YPF 2031"
+    clase: on_usd
+    familia: corporativo
+    ley: local
+    emisor: "YPF"
+    moneda: USD
+    simbolo_ars: YMCXO
+    simbolo_usd: YMCXD
+    vencimiento: 2031-09-11
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; interés/amortización separados por inferencia"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-09-11, 4.375, 0.0]
+      - [2027-03-11, 4.375, 0.0]
+      - [2027-09-13, 4.375, 0.0]
+      - [2028-03-13, 4.375, 0.0]
+      - [2028-09-11, 4.375, 0.0]
+      - [2029-03-12, 4.375, 0.0]
+      - [2029-09-11, 4.375, 20.0]
+      - [2030-03-11, 3.5, 0.0]
+      - [2030-09-11, 3.5, 20.0]
+      - [2031-03-11, 2.625, 0.0]
+      - [2031-09-11, 2.625, 60.0]
+  YM38:
+    nombre: "ON YPF 2027"
+    clase: on_usd
+    familia: corporativo
+    ley: local
+    emisor: "YPF"
+    moneda: USD
+    simbolo_ars: YM38O
+    simbolo_usd: YM38D
+    vencimiento: 2027-07-22
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; interés/amortización separados por inferencia"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-04-22, 1.8493, 0.0]
+      - [2026-07-22, 1.8699, 0.0]
+      - [2026-10-22, 1.8904, 0.0]
+      - [2027-01-22, 1.8904, 0.0]
+      - [2027-04-22, 1.8493, 0.0]
+      - [2027-07-22, 1.8699, 100.0]
+  MGCR:
+    nombre: "ON Pampa Energía 2037"
+    clase: on_usd
+    familia: corporativo
+    ley: local
+    emisor: "Pampa Energía"
+    moneda: USD
+    simbolo_ars: MGCRO
+    simbolo_usd: MGCRD
+    vencimiento: 2037-11-16
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; interés/amortización separados por inferencia"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-05-14, 3.875, 0.0]
+      - [2026-11-16, 3.875, 0.0]
+      - [2027-05-14, 3.875, 0.0]
+      - [2027-11-15, 3.875, 0.0]
+      - [2028-05-15, 3.875, 0.0]
+      - [2028-11-14, 3.875, 0.0]
+      - [2029-05-14, 3.875, 0.0]
+      - [2029-11-14, 3.875, 0.0]
+      - [2030-05-14, 3.875, 0.0]
+      - [2030-11-14, 3.875, 0.0]
+      - [2031-05-14, 3.875, 0.0]
+      - [2031-11-14, 3.875, 0.0]
+      - [2032-05-14, 3.875, 0.0]
+      - [2032-11-15, 3.875, 0.0]
+      - [2033-05-16, 3.875, 0.0]
+      - [2033-11-14, 3.875, 0.0]
+      - [2034-05-15, 3.875, 0.0]
+      - [2034-11-14, 3.875, 0.0]
+      - [2035-05-14, 3.875, 0.0]
+      - [2035-11-14, 3.875, 0.0]
+      - [2036-05-14, 3.875, 0.0]
+      - [2036-11-14, 3.875, 0.0]
+      - [2037-05-14, 3.875, 0.0]
+      - [2037-11-16, 3.875, 100.0]
+  MGCO:
+    nombre: "ON Pampa Energía 2034"
+    clase: on_usd
+    familia: corporativo
+    ley: local
+    emisor: "Pampa Energía"
+    moneda: USD
+    simbolo_ars: MGCOO
+    simbolo_usd: MGCOD
+    vencimiento: 2034-12-18
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; interés/amortización separados por inferencia"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-06-16, 3.9375, 0.0]
+      - [2026-12-16, 3.9375, 0.0]
+      - [2027-06-16, 3.9375, 0.0]
+      - [2027-12-16, 3.9375, 0.0]
+      - [2028-06-16, 3.9375, 0.0]
+      - [2028-12-18, 3.9375, 0.0]
+      - [2029-06-18, 3.9375, 0.0]
+      - [2029-12-17, 3.9375, 0.0]
+      - [2030-06-18, 3.9375, 0.0]
+      - [2030-12-16, 3.9375, 0.0]
+      - [2031-06-16, 3.9375, 0.0]
+      - [2031-12-16, 3.9375, 0.0]
+      - [2032-06-16, 3.9375, 0.0]
+      - [2032-12-16, 3.9375, 0.0]
+      - [2033-06-16, 3.9375, 0.0]
+      - [2033-12-16, 3.9375, 0.0]
+      - [2034-06-16, 3.9375, 0.0]
+      - [2034-12-18, 3.9375, 100.0]
+  TSC4:
+    nombre: "ON TGS 2035"
+    clase: on_usd
+    familia: corporativo
+    ley: local
+    emisor: "TGS"
+    moneda: USD
+    simbolo_ars: TSC4O
+    simbolo_usd: TSC4D
+    vencimiento: 2035-11-20
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; interés/amortización separados por inferencia"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-05-20, 3.875, 0.0]
+      - [2026-11-23, 3.875, 0.0]
+      - [2027-05-20, 3.875, 0.0]
+      - [2027-11-22, 3.875, 0.0]
+      - [2028-05-22, 3.875, 0.0]
+      - [2028-11-21, 3.875, 0.0]
+      - [2029-05-21, 3.875, 0.0]
+      - [2029-11-21, 3.875, 0.0]
+      - [2030-05-20, 3.875, 0.0]
+      - [2030-11-21, 3.875, 0.0]
+      - [2031-05-20, 3.875, 0.0]
+      - [2031-11-20, 3.875, 0.0]
+      - [2032-05-20, 3.875, 0.0]
+      - [2032-11-22, 3.875, 0.0]
+      - [2033-05-20, 3.875, 0.0]
+      - [2033-11-21, 3.875, 0.0]
+      - [2034-05-22, 3.875, 0.0]
+      - [2034-11-20, 3.875, 0.0]
+      - [2035-05-21, 3.875, 0.0]
+      - [2035-11-20, 3.875, 100.0]
+  VSCP:
+    nombre: "ON Vista Energy 2029"
+    clase: on_usd
+    familia: corporativo
+    ley: local
+    emisor: "Vista Energy"
+    moneda: USD
+    simbolo_ars: VSCPO
+    simbolo_usd: VSCPD
+    vencimiento: 2029-05-03
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; interés/amortización separados por inferencia"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-05-04, 3.9671, 0.0]
+      - [2026-11-03, 4.0329, 0.0]
+      - [2027-05-03, 3.9671, 0.0]
+      - [2027-11-03, 4.0329, 25.0]
+      - [2028-05-03, 2.9918, 25.0]
+      - [2028-11-03, 2.0164, 25.0]
+      - [2029-05-03, 0.9918, 25.0]
+  VSCT:
+    nombre: "ON Vista Energy 2035"
+    clase: on_usd
+    familia: corporativo
+    ley: local
+    emisor: "Vista Energy"
+    moneda: USD
+    simbolo_ars: VSCTO
+    simbolo_usd: VSCTD
+    vencimiento: 2035-12-10
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; interés/amortización separados por inferencia"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-06-10, 3.8125, 0.0]
+      - [2026-12-10, 3.8125, 0.0]
+      - [2027-06-10, 3.8125, 0.0]
+      - [2027-12-10, 3.8125, 0.0]
+      - [2028-06-12, 3.8125, 0.0]
+      - [2028-12-11, 3.8125, 0.0]
+      - [2029-06-11, 3.8125, 0.0]
+      - [2029-12-10, 3.8125, 0.0]
+      - [2030-06-10, 3.8125, 0.0]
+      - [2030-12-10, 3.8125, 0.0]
+      - [2031-06-10, 3.8125, 0.0]
+      - [2031-12-10, 3.8125, 0.0]
+      - [2032-06-10, 3.8125, 0.0]
+      - [2032-12-10, 3.8125, 0.0]
+      - [2033-06-10, 3.8125, 0.0]
+      - [2033-12-12, 3.8125, 33.0]
+      - [2034-06-12, 2.5544, 0.0]
+      - [2034-12-11, 2.5544, 33.0]
+      - [2035-06-11, 1.2962, 0.0]
+      - [2035-12-10, 1.2963, 34.0]
+  PN35:
+    nombre: "ON Pan American Energy 2029"
+    clase: on_usd
+    familia: corporativo
+    ley: local
+    emisor: "Pan American Energy"
+    moneda: USD
+    simbolo_ars: PN35O
+    simbolo_usd: PN35D
+    vencimiento: 2029-09-27
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; interés/amortización separados por inferencia"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-09-28, 3.53, 0.0]
+      - [2027-03-29, 3.47, 0.0]
+      - [2027-09-27, 3.53, 0.0]
+      - [2028-03-27, 3.49, 0.0]
+      - [2028-09-27, 3.53, 0.0]
+      - [2029-03-27, 3.47, 0.0]
+      - [2029-09-27, 3.53, 100.0]
+  PN36:
+    nombre: "ON Pan American Energy 2031"
+    clase: on_usd
+    familia: corporativo
+    ley: local
+    emisor: "Pan American Energy"
+    moneda: USD
+    simbolo_ars: PN36O
+    simbolo_usd: PN36D
+    vencimiento: 2031-11-13
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; interés/amortización separados por inferencia"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-05-13, 3.6, 0.0]
+      - [2026-11-13, 3.65, 0.0]
+      - [2027-05-13, 3.6, 0.0]
+      - [2027-11-15, 3.65, 0.0]
+      - [2028-05-15, 3.62, 0.0]
+      - [2028-11-13, 3.65, 0.0]
+      - [2029-05-14, 3.6, 0.0]
+      - [2029-11-13, 3.65, 0.0]
+      - [2030-05-13, 3.6, 0.0]
+      - [2030-11-13, 3.65, 0.0]
+      - [2031-05-13, 3.6, 0.0]
+      - [2031-11-13, 3.65, 100.0]
+  TTC:
+    nombre: "ON Tecpetrol 2030"
+    clase: on_usd
+    familia: corporativo
+    ley: local
+    emisor: "Tecpetrol"
+    moneda: USD
+    simbolo_ars: TTCDO
+    simbolo_usd: TTCDD
+    vencimiento: 2030-11-04
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; interés/amortización separados por inferencia"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-05-04, 3.8125, 0.0]
+      - [2026-11-03, 3.8125, 0.0]
+      - [2027-05-03, 3.8125, 0.0]
+      - [2027-11-03, 3.8125, 0.0]
+      - [2028-05-03, 3.8125, 0.0]
+      - [2028-11-03, 3.8125, 0.0]
+      - [2029-05-03, 3.8125, 0.0]
+      - [2029-11-05, 3.8125, 0.0]
+      - [2030-05-03, 3.8125, 0.0]
+      - [2030-11-04, 3.8125, 100.0]
+  LOC5:
+    nombre: "ON Loma Negra 2027"
+    clase: on_usd
+    familia: corporativo
+    ley: local
+    emisor: "Loma Negra"
+    moneda: USD
+    simbolo_ars: LOC5O
+    simbolo_usd: LOC5D
+    vencimiento: 2027-07-26
+    fuente: "github.com/arisbdar/rendimientos-ar public/config.json; interés/amortización separados por inferencia"
+    confianza: media
+    flujos:  # [fecha, interes, amortizacion] por 100 VN originales
+      - [2026-07-24, 3.9671, 0.0]
+      - [2027-01-25, 4.0329, 0.0]
+      - [2027-07-26, 4.011, 100.0]

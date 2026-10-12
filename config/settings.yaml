@@ -1,6 +1,15 @@
 # Configuración central. Todo umbral nuevo va acá, no en el código.
 
 horizonte_default: mediano
+perfil_default: moderado
+
+# Estrategia por clase. acciones_ar: equiponderado (las N más líquidas del panel líder, en partes iguales)
+# | score (ranking técnico+fundamental). En el backtest 2018-2026 el score no le ganó al equiponderado en locales.
+estrategia:
+  acciones_ar: equiponderado
+  n_acciones_ar: 8
+  margen_salida_liquidez: 3   # una tenida sale recién si cae debajo del puesto N + 3 en liquidez (anti-rotación)
+  salir_por_stop: false       # backtest 2018-26: con stop -8,5% anual vs +9,0% sin stop (vende en los pisos)
 
 # Peso del score técnico vs. fundamental según horizonte
 pesos_horizonte:
@@ -8,35 +17,204 @@ pesos_horizonte:
   mediano: {tecnico: 0.45, fundamental: 0.55}
   largo:   {tecnico: 0.20, fundamental: 0.80}
 
+# Score técnico = mezcla de absoluto (tendencia/momentum propio) y relativo (percentil vs. el universo)
+tecnico:
+  peso_relativo: 0.40
+  min_activos_relativo: 8      # con menos activos con datos no se calcula percentil
+
+# Score fundamental = mezcla de absoluto (rangos fijos) y relativo (percentil dentro de su grupo accion/cedear)
+fundamental:
+  peso_relativo: 0.50
+  min_activos_relativo: 6
+  # rangos plausibles de yfinance; fuera de esto el dato se descarta (monedas mezcladas, divisiones por ~0)
+  limites:
+    pe: [-1000000000, 300]
+    ev_ebitda: [-1000000000, 150]
+    pb: [0.05, 100]
+    roe: [-3, 5]
+    operating_margin: [-3, 1]
+    net_debt_ebitda: [-30, 40]
+    revenue_growth: [-0.9, 3]
+    fcf_yield: [-1, 1]
+
 # Umbrales de score (0-100) para las señales
 umbrales:
   comprar: 68          # score >= comprar  -> COMPRAR / AGREGAR
   vender: 40           # score <  vender   -> REDUCIR / VENDER
   rsi_sobrecompra: 75  # si RSI > esto, la compra pasa a "ESPERAR"
+  filtro_tendencia: true  # no abrir posiciones nuevas debajo de la media de 200 ruedas (en USD) ni sin 200 ruedas
+  histeresis: 3        # tenida: se vende con score < vender - 3; no tenida: se compra con score >= comprar + 3
   cobertura_fund_minima: 0.4  # menos cobertura de datos fundamentales = se usa solo técnico y se marca
 
+# Liquidez: volumen promedio diario (20 ruedas) en pesos. Debajo de esto el activo no recibe compras.
+liquidez:
+  volumen_min_ars_dia: 15000000
+  max_pct_volumen_por_orden: 0.10   # una orden no puede superar el 10% del volumen diario promedio
+
+# Alertas de riesgo sobre posiciones en cartera (todo medido en USD)
+alertas:
+  stop_desde_maximo: -0.25     # cae 25% desde el máximo de 52 semanas y está bajo la SMA200 -> REVISAR STOP
+  volatilidad_alta: 0.60       # volatilidad anual > 60% -> se marca
+  semanas_contexto: 4          # noticias del reporte semanal a mostrar
+
+# Asignación por clase de activo según perfil (suma 1). El régimen macro la ajusta.
+perfiles:
+  conservador: {acciones_ar: 0.15, cedears: 0.20, bonos_usd: 0.35, pesos: 0.25, caja: 0.05}
+  moderado:    {acciones_ar: 0.30, cedears: 0.30, bonos_usd: 0.20, pesos: 0.15, caja: 0.05}
+  moderado_agresivo: {acciones_ar: 0.30, cedears: 0.40, bonos_usd: 0.15, pesos: 0.10, caja: 0.05}
+  agresivo:    {acciones_ar: 0.45, cedears: 0.35, bonos_usd: 0.10, pesos: 0.05, caja: 0.05}
+
+# Régimen macro argentino: ajusta cuánto va a activos argentinos vs. cobertura afuera
+macro:
+  riesgo_pais_bueno: 500       # por debajo: favorable
+  riesgo_pais_malo: 1000       # por encima: adverso
+  riesgo_pais_cambio_malo: 0.20  # sube 20% en 60 días: adverso
+  brecha_buena: 0.05
+  brecha_mala: 0.30
+  # cuánto se mueve del perfil hacia/desde Argentina según régimen (fracción del peso argentino)
+  # Backtest 2008-2026 (src/backtest/tactico.py): el ajuste por régimen AR empeoró CAGR (9,2% vs 11,4%) y caída
+  # máxima (-55% vs -49%): corta tarde y con cepo marcaba "adverso" en años de suba. Apagado (0); se sigue mostrando.
+  ajuste_favorable: 0.0
+  ajuste_adverso: 0.0
+
 portfolio:
-  peso_max_accion: 0.15
-  peso_max_sector: 0.35
+  peso_max_accion: 0.10        # tope por activo individual (sobre el total de la cartera)
+  peso_max_sector: 0.25
   caja_minima: 0.05
-  orden_minima_ars: 50000
-  paper_capital_inicial_ars: 10000000
+  orden_minima_ars: 10000
+  posicion_minima_ars: 40000   # cada posición vale al menos esto: con poco capital se concentra, con más se diversifica
+  usar_ventas_para_compras: false  # las ventas liquidan después: las compras se limitan a la caja de hoy
+  paper_capital_inicial_ars: 500000
+  max_posiciones_rv: 12        # máximo de acciones + CEDEARs en cartera
+  sizing: score_vol            # score_vol: proporcional a score / volatilidad | score: solo score
 
 riesgo:
-  orden_maxima_ars: 2000000
-  ordenes_max_por_corrida: 10
+  orden_maxima_ars: null          # sin tope absoluto (política). Poner un monto para limitar cada orden
+  orden_maxima_pct_cartera: 0.35  # anti-bug: ninguna orden puede superar el 35% del valor total de la cartera
+  ordenes_max_por_corrida: 40
   slippage_limite: 0.005   # el precio límite se pone a último ±0.5%
 
 ejecucion:
   mercado: bCBA
-  plazo: t1        # liquidación 24hs; verificar valores aceptados en la doc de IOL
+  plazo: t1        # liquidación 24hs (estándar BYMA). IOL acepta t0 | t1 | t2 | t3
   tipo_orden: precioLimite
+  feriados: []     # fechas ISO de feriados BYMA (para la validez de la orden), ej. ["2026-11-23"]
+
+paper:
+  comision: 0.006  # comisión + derechos por lado que simula el broker de práctica
+
+iol:
+  max_reintentos: 3
+  intervalo_min_seg: 0.25
+  backoff_base_seg: 1.0
+
+# Renta fija: cuántos instrumentos por clase y con qué score mínimo
+renta_fija:
+  max_instrumentos: {bonos_usd: 3, pesos: 3}
+  peso_max_instrumento: 0.12
+  score_min: 50
+  mantener_si_top: 6
 
 datos:
   fuente_precios: yfinance   # yfinance | iol
   historia_anios: 3
+  ttl_precios_min: 15        # caché de precios/CCL: se vuelve a bajar pasados N minutos (corridas intradiarias)
+  hora_ruedas_cerradas: "18:00"  # antes de esta hora (AR) la vela de hoy está incompleta y no entra a los indicadores
+  max_dias_sin_precio: 3     # último precio en BYMA más viejo que N ruedas hábiles -> no se opera
+  max_salto_diario: 0.25     # |log retorno| de la última rueda mayor a esto (~+28% / -22%) -> no se opera ese día
+  ruedas_sin_volumen_max: 3  # sin operaciones en las últimas N+1 ruedas -> no se opera
+  umbral_pico: 0.30          # print aislado que revierte al día siguiente (|log ret| > esto) -> se descarta
+  desvio_ccl_cedear_max: 0.05  # CCL implícito del CEDEAR vs. su mediana de 20 ruedas -> precio viejo / ratio cambiado
+
+costos:
+  # comisión IOL + derechos de mercado, por lado. Revisar tu plan de comisiones en IOL.
+  comision_bps: 50
+  derechos_bps: 8
 
 backtest:
   costo_bps: 60      # comisión + derechos de mercado, por lado (0,60%)
-  top_n: 6
+  top_n: 8
   score_minimo: 55
+  score_salida: 37   # zona de mantener como en vivo (vender - histeresis). Sin esto rotaba 10-15x por año
+  filtro_tendencia: true
+
+# Operador automático. Corre varias veces por día hábil (tarea programada) y decide solo si opera.
+operador:
+  modo: paper              # paper | live. "live" además exige IOL_LIVE_TRADING=1 en el .env
+  perfil: moderado
+  horizonte: mediano
+  banda_no_operar: 0.02    # no ajusta posiciones si el desvío es menor al 2% de la cartera (comisiones)
+  tolerancia_precio: 0.05  # no opera si el precio en vivo se aleja >5% del analizado (dato roto)
+  pedido_fondos_minimo: 100000
+  aviso_caida: -0.15       # avisa (no vende) si la cartera cae 15% desde su máximo, sin contar depósitos
+
+# Capa táctica (src/analysis/tactico.py): arriba del perfil + régimen argentino.
+# Se calcula siempre y se muestra; solo cambia la cartera lo que tenga `aplicar: true`.
+# Validación: main.py backtest-tactico (2008-2026, USD, mensual, perfil moderado_agresivo, costos 0,6% por lado).
+# Resultado 2026-10-11: ninguna pieza mejoró el riesgo/retorno de forma pareja en los sub-períodos -> todo apagado.
+#   perfil fijo:                  CAGR 11,4%  Sharpe 0,48  caída máx -49%  Calmar 0,23
+#   + riesgo global:              CAGR  9,6%  Sharpe 0,50  caída máx -42%  Calmar 0,23 (salva 2008 y 2020; pierde
+#                                 2011-15, 2018-19, 2022 y 2023-26)
+#   + 20% refugio FIJO (sin timing): CAGR 10,2%  Sharpe 0,53  caída máx -41%  Calmar 0,25  <- mejor que el timing
+#   rotación (solo CEDEARs):      Sharpe 0,52 vs 0,53 parejo, 4 veces más rotación
+#   elecciones AR 2007-2025:      antes de votar la canasta subió +3,4% promedio (4 semanas): cubrirse costó.
+tactico:
+  # Riesgo global: S&P 500 vs. tendencia, VIX, crédito (HYG/IEF), curva de tasas -> riesgo 0..1 -> fracción
+  # del presupuesto de acciones que pasa a refugio. Parámetros estándar elegidos de antemano (no optimizados).
+  riesgo_global:
+    aplicar: false
+    sma_dias: 200
+    sma_meses: 10
+    vix_calmo: 20
+    vix_panico: 35
+    credito_sma_dias: 200
+    pesos: {tendencia_sma200: 0.20, tendencia_10m: 0.20, vix: 0.25, credito: 0.25, curva: 0.10}
+    persistencia_dias: 5     # el riesgo es la media de las últimas 5 ruedas: una señal suelta no mueve la cartera
+    riesgo_desde: 0.25       # debajo de esto, nada a refugio
+    riesgo_pleno: 0.75       # arriba de esto, defensivo_max a refugio
+    defensivo_max: 0.8       # en pánico pleno, hasta 80% de las acciones pasa a refugio
+    paso: 0.1                # se mueve en escalones de 10%
+    margen: 0.05             # histéresis: cambia de escalón solo si se aleja más de medio escalón + 5%
+  # Bonos argentinos en dólares: en crisis global caen con el riesgo país -> se recortan como acciones
+  bonos_usd_factor: {normal: 0.5, ar_adverso: 1.0}
+  # A dónde va lo que sale de acciones (fracciones). Con régimen argentino adverso, más oro (los pesos sufren).
+  refugio:
+    normal: {pesos: 0.5, oro: 0.3, caja: 0.2}
+    ar_adverso: {oro: 0.6, pesos: 0.2, caja: 0.2}
+  refugio_oro: GLD             # CEDEAR que hace de oro (cobertura, no se elige por score)
+  refugio_pesos_clases: [lecap, boncap]   # con defensivo > 0 los pesos van solo a letras/bonos cortos a tasa fija
+  # Rotación por sector/región dentro de los CEDEARs: momentum 12m y 3m ajustado por volatilidad entre grupos.
+  rotacion:
+    aplicar: false
+    peso_12m: 0.5
+    peso_3m: 0.5
+    mult_min: 0.5
+    mult_max: 1.75
+    min_grupos: 4
+    grupos:
+      eeuu_grandes:   {nombre: "EE.UU. grandes (S&P 500)", proxy: SPY, tickers: [SPY, DIA, BRKB]}
+      eeuu_chicas:    {nombre: "EE.UU. empresas chicas", proxy: IWM, tickers: [IWM]}
+      tecnologia:     {nombre: "Tecnología", proxy: XLK, tickers: [QQQ, ARKK], sectores: [tecnologia]}
+      energia:        {nombre: "Energía", proxy: XLE, tickers: [XLE, URA], sectores: [energia_ext]}
+      financiero:     {nombre: "Bancos y financieras de EE.UU.", proxy: XLF, tickers: [XLF, JPM, V, MA]}
+      salud:          {nombre: "Salud", proxy: XLV, sectores: [salud_ext]}
+      consumo_masivo: {nombre: "Consumo masivo", proxy: XLP, tickers: [KO, PEP, WMT, COST]}
+      consumo:        {nombre: "Consumo e internet", proxy: XLY, sectores: [consumo_ext]}
+      industria:      {nombre: "Industria", proxy: XLI, sectores: [industria_ext]}
+      mineria_oro:    {nombre: "Minería y metales", proxy: GDX, tickers: [GLD, SLV], sectores: [mineria, metales]}
+      brasil:         {nombre: "Brasil", proxy: EWZ, tickers: [EWZ, ITUB, BBD, NU]}
+      emergentes:     {nombre: "Emergentes", proxy: EEM, tickers: [EEM, BABA]}
+  # Calendario de eventos (config/eventos.yaml): baja lo argentino antes de eventos de alto impacto.
+  eventos:
+    aplicar: false
+    mostrar_dias: 60           # eventos de los próximos N días se muestran como aviso
+    destino: {cedears: 0.7, caja: 0.3}
+
+# Efectivo: lo que sobra (más allá de la caja operativa) se estaciona en una Lecap corta para que no pierda contra la
+# inflación. Cuando hace falta plata para comprar, el operador la vende (liquida al día siguiente).
+caja:
+  estacionar: true
+  operativa: 0.02          # 2% queda en pesos para operar
+  dias_min: 20             # Lecap que venza entre 20 y 120 días
+  dias_max: 120
+  volumen_min: 1000000000  # muy líquida: se vende en el acto

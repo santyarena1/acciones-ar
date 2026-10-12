@@ -50,8 +50,9 @@ def metric_score(nombre: str, valor: float) -> float:
     return lin(valor, malo, bueno)
 
 
-def fundamental_score(metrics: dict, sector: str | None = None) -> dict:
-    excluir = NO_APLICA.get(sector or "", set())
+def fundamental_score(metrics: dict, sector: str | None = None, excluir_extra: set[str] | None = None) -> dict:
+    """`excluir_extra`: métricas que no se puntúan en absoluto (ej. ventas nominales en pesos de las locales)."""
+    excluir = NO_APLICA.get(sector or "", set()) | (excluir_extra or set())
     aplicables = [m for m in RANGOS if m not in excluir]
     presentes = {m: metrics[m] for m in aplicables if _valido(metrics.get(m))}
     cobertura = len(presentes) / len(aplicables) if aplicables else 0.0

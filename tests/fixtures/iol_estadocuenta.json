@@ -1,0 +1,23 @@
+{
+  "cuentas": [
+    {"numero": "000000", "tipo": "inversion_Argentina_Pesos", "moneda": "peso_Argentino",
+     "disponible": 250000.5, "comprometido": 15000.0, "saldo": 265000.5, "titulosValorizados": 4308900.0,
+     "total": 4573900.5, "margenDescubierto": 0.0,
+     "saldos": [
+       {"liquidacion": "inmediato", "saldo": 250000.5, "comprometido": 15000.0, "disponible": 235000.5, "disponibleOperar": 235000.5},
+       {"liquidacion": "hrs24", "saldo": 310000.5, "comprometido": 15000.0, "disponible": 295000.5, "disponibleOperar": 295000.5},
+       {"liquidacion": "hrs48", "saldo": 310000.5, "comprometido": 15000.0, "disponible": 295000.5, "disponibleOperar": 295000.5},
+       {"liquidacion": "hrs72", "saldo": 310000.5, "comprometido": 15000.0, "disponible": 295000.5, "disponibleOperar": 295000.5},
+       {"liquidacion": "masHrs72", "saldo": 310000.5, "comprometido": 15000.0, "disponible": 295000.5, "disponibleOperar": 295000.5}
+     ],
+     "estado": "operable"},
+    {"numero": "000000", "tipo": "inversion_Argentina_Dolares", "moneda": "dolar_Estadounidense",
+     "disponible": 120.0, "comprometido": 0.0, "saldo": 120.0, "titulosValorizados": 5.25, "total": 125.25,
+     "margenDescubierto": 0.0, "saldos": [], "estado": "operable"},
+    {"numero": "000000", "tipo": "inversion_Estados_Unidos_Dolares", "moneda": "dolar_Estadounidense",
+     "disponible": 0.0, "comprometido": 0.0, "saldo": 0.0, "titulosValorizados": 0.0, "total": 0.0,
+     "margenDescubierto": 0.0, "saldos": [], "estado": "operable"}
+  ],
+  "estadisticas": [{"descripcion": "Operaciones del mes", "cantidad": 4, "volumen": 512000.0}],
+  "totalEnPesos": 4720000.0
+}

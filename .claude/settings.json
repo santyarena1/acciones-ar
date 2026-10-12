@@ -1,6 +1,18 @@
 {
   "permissions": {
-    "allow": ["Bash(python main.py analizar:*)", "Bash(python main.py ordenes:*)", "Bash(python main.py backtest:*)", "Bash(pytest:*)"],
-    "deny": ["Bash(python main.py ejecutar * --live*)", "Read(.env)"]
+    "allow": [
+      "Bash(python main.py analizar:*)",
+      "Bash(python main.py ordenes:*)",
+      "Bash(python main.py backtest:*)",
+      "Bash(pytest:*)"
+    ],
+    "deny": [
+      "Bash(python main.py ejecutar * --live*)",
+      "Read(.env)",
+      "Bash(*main.py operar*--modo live*)",
+      "Bash(*main.py ejecutar*--live*)",
+      "Edit(.env)",
+      "Write(.env)"
+    ]
   }
 }

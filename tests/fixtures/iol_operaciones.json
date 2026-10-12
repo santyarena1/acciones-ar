@@ -1,0 +1,10 @@
+[
+  {"numero": 71234567, "fechaOrden": "2026-10-09T11:05:12.47", "tipo": "Compra", "estado": "iniciada",
+   "mercado": "BCBA", "simbolo": "GGAL", "cantidad": 10.0, "monto": 65000.0, "modalidad": "precio_Limite",
+   "precio": 6500.0, "fechaOperada": null, "cantidadOperada": 0.0, "precioOperado": 0.0, "montoOperado": 0.0,
+   "plazo": "a24horas"},
+  {"numero": 71234500, "fechaOrden": "2026-10-08T15:40:00", "tipo": "Venta", "estado": "terminada",
+   "mercado": "BCBA", "simbolo": "PAMP", "cantidad": 50.0, "monto": 194500.0, "modalidad": "precio_Limite",
+   "precio": 3890.0, "fechaOperada": "2026-10-08T15:41:02", "cantidadOperada": 50.0, "precioOperado": 3890.0,
+   "montoOperado": 194500.0, "plazo": "a24horas"}
+]
