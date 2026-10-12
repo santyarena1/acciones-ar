@@ -21,3 +21,5 @@ __pycache__/
 
 # Texto de reportes de terceros (derechos de Gorostiaga Bursátil): solo local
 tests/fixtures/gorostiaga_*.txt
+.vercel
+.env*
