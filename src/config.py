@@ -24,7 +24,21 @@ def _fusionar(base: dict, extra: dict) -> dict:
     return out
 
 
+CLAVE_PREFERENCIAS = "usuario"
+
+
+def _prefs_en_db(path: Path | None) -> bool:
+    from . import db
+    return path is None and db.hay_db()
+
+
 def preferencias(path: Path | None = None) -> dict[str, Any]:
+    """Preferencias del dueño. Con DATABASE_URL: tabla `preferencias`, clave 'usuario' (las elige en la web);
+    si no, data/usuario.yaml. Pasar `path` fuerza el archivo."""
+    if _prefs_en_db(path):
+        from . import db
+        valor = db.kv_get("preferencias", CLAVE_PREFERENCIAS, {})
+        return valor if isinstance(valor, dict) else {}
     p = path or USUARIO_PATH
     if not p.exists():
         return {}
@@ -33,8 +47,12 @@ def preferencias(path: Path | None = None) -> dict[str, Any]:
 
 def guardar_preferencias(cambios: dict[str, Any], path: Path | None = None) -> dict[str, Any]:
     """Guarda (fusionando) preferencias del usuario. Pisan a settings.yaml al cargar."""
+    nuevo = _fusionar(preferencias(path), cambios)
+    if _prefs_en_db(path):
+        from . import db
+        db.kv_set("preferencias", CLAVE_PREFERENCIAS, nuevo)
+        return nuevo
     p = path or USUARIO_PATH
-    nuevo = _fusionar(preferencias(p), cambios)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(yaml.safe_dump(nuevo, allow_unicode=True, sort_keys=False), encoding="utf-8")
     return nuevo

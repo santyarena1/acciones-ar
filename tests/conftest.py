@@ -10,6 +10,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.config import load_settings  # noqa: E402
 
 
+VARIABLES_DE_ENTORNO = ("DATABASE_URL", "SALIDA_SILENCIOSA", "CLAVE_CIFRADO", "IOL_LIVE_TRADING",
+                        "TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID", "IOL_USERNAME", "IOL_PASSWORD")
+
+
+@pytest.fixture(autouse=True)
+def _entorno_limpio(monkeypatch):
+    """Los tests nunca tocan una base, Telegram ni IOL reales aunque la PC tenga esas variables."""
+    for nombre in VARIABLES_DE_ENTORNO:
+        monkeypatch.delenv(nombre, raising=False)
+
+
+@pytest.fixture
+def base_sqlite(tmp_path, monkeypatch):
+    """Activa el modo base de datos contra un SQLite temporal con las tablas del esquema."""
+    from src import db
+    url = f"sqlite:///{(tmp_path / 'base.db').as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", url)
+    motor = db.motor()
+    db.crear_tablas()
+    yield motor
+    motor.dispose()
+
+
 @pytest.fixture
 def settings():
     return load_settings(usuario=Path(__file__).parent / "_sin_preferencias.yaml")  # tests sin prefs del usuario

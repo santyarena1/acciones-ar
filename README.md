@@ -28,8 +28,10 @@ py -3.13 -m venv .venv
 .venv/Scripts/python main.py operar --forzar-horario   # un ciclo del operador (modo práctica)
 .venv/Scripts/python main.py backtest --universo cedears --desde 2018-01-01
 ```
-Credenciales de IOL y Telegram se cargan desde la app (Configuración) y quedan solo en `.env` local
-(ver `.env.example`). El modo real requiere activarlo explícitamente en la app.
+En producción corre en la nube: web en Vercel + motor en GitHub Actions + base Postgres (Neon). Ver
+[docs/DEPLOY.md](docs/DEPLOY.md). Las claves de IOL y Telegram se cargan desde la web y quedan cifradas en la base.
+En local (sin `DATABASE_URL`) todo vive en archivos y `.env` (ver `.env.example`). El modo real requiere
+activarlo explícitamente.
 
 ## Evidencia (backtests en USD, con costos; sesgo de supervivencia: universo actual)
 | Parte | Estrategia | Resultado 2018–2026 |
