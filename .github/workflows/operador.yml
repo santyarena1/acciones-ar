@@ -1,0 +1,70 @@
+# Operador automático en la nube. Habla con la web SOLO a través de la base (Neon / Postgres).
+# El repo es público: los logs también. Por eso corre con SALIDA_SILENCIOSA=1 (solo líneas de estado genéricas);
+# el detalle queda en la tabla `eventos` de la base. Secrets: DATABASE_URL y CLAVE_CIFRADO (nada más:
+# las claves de IOL y Telegram se leen cifradas de la base).
+name: Operador
+
+on:
+  schedule:
+    # 11:30 a 16:30 hora Argentina (UTC-3 todo el año), lunes a viernes. Feriados se chequean adentro.
+    - cron: "30 14-19 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      forzar:
+        description: "Revisar ahora aunque el mercado esté cerrado (en modo real solo analiza: nunca manda órdenes)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: operador
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  operar:
+    if: github.repository == 'santyarena1/acciones-ar'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      CLAVE_CIFRADO: ${{ secrets.CLAVE_CIFRADO }}
+      SALIDA_SILENCIOSA: "1"
+      PYTHONIOENCODING: utf-8
+      TZ: America/Argentina/Buenos_Aires
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -q -r requirements.txt
+
+      - name: Fecha (para la caché de datos)
+        id: fecha
+        run: echo "hoy=$(date +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      # Precios, fundamentales y feriados bajados hoy: la próxima corrida del día no los vuelve a bajar.
+      - name: Caché de datos del mercado
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: datos-${{ steps.fecha.outputs.hoy }}-${{ github.run_id }}
+          restore-keys: |
+            datos-${{ steps.fecha.outputs.hoy }}-
+            datos-
+
+      - name: Esquema de la base (idempotente)
+        run: python main.py db-init
+
+      - name: Reporte semanal (lunes y martes)
+        continue-on-error: true
+        run: |
+          if [ "$(date +%u)" -le 2 ]; then python main.py reportes; else echo "[ok] hoy no hay reporte semanal"; fi
+
+      - name: Operar
+        run: python main.py operar ${{ inputs.forzar && '--forzar' || '' }}

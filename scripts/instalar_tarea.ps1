@@ -1,3 +1,5 @@
+# LEGADO (solo uso local): en producción el operador corre en GitHub Actions (.github/workflows/operador.yml).
+# Ver docs/DEPLOY.md. Si usás esto en la PC, no actives también la nube: serían dos operadores.
 # Registra la tarea "AccionesAR - operador": análisis completo cada hora de 11:30 a 16:30, lunes a viernes.
 # En cada pasada el operador decide solo si opera (feriados y mercado cerrado se chequean adentro).
 # Para quitarla:  Unregister-ScheduledTask -TaskName "AccionesAR - operador" -Confirm:$false

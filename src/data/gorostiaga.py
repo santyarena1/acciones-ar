@@ -1,8 +1,13 @@
 """Reporte Semanal de Mercados de Gorostiaga Bursátil: descarga, parseo y contexto por ticker.
 
 Se publica un PDF por semana en https://gorostiagabursatil.com/reportes/S{n}.pdf (lunes a la noche o
-martes); solo quedan públicos los últimos ~3. Guardamos cada PDF y su parseo `S{n}.json` en
-data/reportes/ para ir armando historial. `parse_reporte` es puro (sin I/O); los sub-parsers viven en `gorostiaga_parse.py`.
+martes); solo quedan públicos los últimos ~3, así que el historial se arma acá.
+
+Los PDFs NUNCA se guardan (pedido del dueño): se baja -> se parsea -> se persiste TODO lo extraído (numero, fecha,
+formato, resumen, url, macro, adrs, recomendaciones, noticias con eventos, tablas de bonos, avisos) -> se borra el
+PDF enseguida, también si el parseo falla (queda una nota en `avisos`). Con DATABASE_URL va a la tabla `reportes`;
+sin base, a data/reportes/S{n}.json. "No volver a bajar" se decide por el registro guardado, nunca por el PDF.
+`parse_reporte` es puro (sin I/O); los sub-parsers viven en `gorostiaga_parse.py`.
 
 Uso típico:
     reportes = cargar_historial()            # o actualizar() para bajar lo nuevo
@@ -124,42 +129,116 @@ def extraer_paginas(pdf: Path) -> list[str]:
 
 
 def _guardar_json(rep: dict, path: Path) -> None:
-    path.write_text(json.dumps(rep, ensure_ascii=False, indent=1), encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(rep, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
 
 
-def _procesar_pdf(pdf: Path, n: int) -> dict:
-    rep = parse_reporte(extraer_paginas(pdf))
-    if rep.get("numero") is None:
-        rep["numero"] = n
+def _tablas_bonos(paginas: list[str], avisos: list[str]) -> list[dict]:
+    """Tablas de bonos del reporte (ticker, vencimiento, cupón, precio, TIR) para validar la valuación propia."""
+    try:
+        from ..renta_fija.parsers import parsear_tablas_gorostiaga
+        df = parsear_tablas_gorostiaga("\n".join(paginas))
+        return [{**f, "vencimiento": f["vencimiento"].isoformat()} for f in df.to_dict(orient="records")]
+    except Exception as e:  # noqa: BLE001 - una tabla rara no tira abajo el resto del reporte
+        avisos.append(f"tablas_bonos: {type(e).__name__}")
+        return []
+
+
+def _registro(pdf: Path, n: int) -> dict:
+    """Todo lo que se extrae del PDF. Nunca levanta: si falla, devuelve un registro mínimo con el aviso."""
+    try:
+        paginas = extraer_paginas(pdf)
+        rep = parse_reporte(paginas)
+        if not paginas:
+            rep["avisos"].append("pdf: no se pudo leer el texto")
+        rep["tablas_bonos"] = _tablas_bonos(paginas, rep["avisos"])
+    except Exception as e:  # noqa: BLE001
+        rep = {"numero": n, "fecha": None, "avisos": [f"parseo: falló ({type(e).__name__})"]}
+    rep["numero"] = rep.get("numero") or n
     rep["url"] = URL.format(n=n)
-    _guardar_json(rep, pdf.with_suffix(".json"))
     return rep
 
 
-def actualizar(dir: Path = DIR_REPORTES, hoy: date | None = None,
+def _procesar_pdf(pdf: Path, n: int, guardar) -> dict:
+    """Parsea, persiste con `guardar(rep)` y borra el PDF siempre (éxito o falla)."""
+    try:
+        rep = _registro(pdf, n)
+        guardar(rep)
+        return rep
+    finally:
+        pdf.unlink(missing_ok=True)
+
+
+def _limpiar_pdfs(dir: Path) -> None:
+    """Borra PDFs viejos de data/reportes/ que ya tienen su JSON (antes se guardaban)."""
+    for pdf in Path(dir).glob("S*.pdf"):
+        if pdf.with_suffix(".json").exists():
+            pdf.unlink(missing_ok=True)
+
+
+def _usa_db(dir: Path | None) -> bool:
+    from .. import db
+    return dir is None and db.hay_db()
+
+
+def _fecha(valor) -> date | None:
+    try:
+        return date.fromisoformat(str(valor)[:10]) if valor else None
+    except ValueError:
+        return None
+
+
+def _actualizar_db(hoy: date | None, session: requests.Session | None) -> list[dict]:
+    import tempfile
+
+    from .. import db
+    from ..store import limpiar_json
+    esperado = numero_esperado(hoy or date.today())
+    guardados, nuevos = db.numeros_reportes(), []
+    with tempfile.TemporaryDirectory(prefix="reportes_") as tmp:
+        for n in range(esperado - SONDEO_ATRAS, esperado + SONDEO_ADELANTE + 1):
+            if n in guardados:
+                continue
+            pdf = descargar(n, Path(tmp), session)
+            if pdf is None:
+                continue
+            rep = _procesar_pdf(pdf, n, lambda r: db.guardar_reporte(n, _fecha(r.get("fecha")), limpiar_json(r)))
+            nuevos.append(limpiar_json(rep))
+            log.info("Reporte semanal n°%s procesado", n)
+    return nuevos
+
+
+def actualizar(dir: Path | None = None, hoy: date | None = None,
                session: requests.Session | None = None) -> list[dict]:
     """Baja y parsea los reportes que falten alrededor del número esperado para hoy.
 
-    No vuelve a bajar PDFs existentes (si falta solo el JSON, lo regenera). Devuelve los reportes
-    nuevos de esta corrida, ordenados por número.
+    No vuelve a bajar lo que ya está (en archivos: si falta solo el JSON, lo regenera). Devuelve los reportes
+    nuevos de esta corrida, ordenados por número. Pasar `dir` fuerza archivos.
     """
+    if _usa_db(dir):
+        return _actualizar_db(hoy, session)
+    dir = Path(dir or DIR_REPORTES)
+    _limpiar_pdfs(dir)
     esperado = numero_esperado(hoy or date.today())
     nuevos = []
     for n in range(esperado - SONDEO_ATRAS, esperado + SONDEO_ADELANTE + 1):
         pdf, js = dir / f"S{n}.pdf", dir / f"S{n}.json"
         if js.exists():
             continue
-        if not pdf.exists() and descargar(n, dir, session) is None:
+        if not pdf.exists() and descargar(n, dir, session) is None:   # un PDF suelto (corte previo) se procesa
             continue
-        nuevos.append(_procesar_pdf(pdf, n))
+        nuevos.append(_procesar_pdf(pdf, n, lambda r, js=js: _guardar_json(r, js)))
         log.info("Reporte Gorostiaga n°%s procesado", n)
     return nuevos
 
 
-def cargar_historial(dir: Path = DIR_REPORTES) -> list[dict]:
-    """Todos los S*.json guardados, ordenados por número (los ilegibles se saltean con aviso)."""
+def cargar_historial(dir: Path | None = None) -> list[dict]:
+    """Todos los reportes guardados, ordenados por número (en archivos, los ilegibles se saltean con aviso)."""
+    if _usa_db(dir):
+        from .. import db
+        return [r for r in db.cargar_reportes() if isinstance(r, dict)]
     reportes = []
-    for js in Path(dir).glob("S*.json"):
+    for js in Path(dir or DIR_REPORTES).glob("S*.json"):
         try:
             reportes.append(json.loads(js.read_text(encoding="utf-8")))
         except (OSError, json.JSONDecodeError) as e:

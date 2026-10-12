@@ -1,7 +1,9 @@
 """Operador automático: analiza, decide y ejecuta en el broker (paper o IOL real).
 
-Ciclo (lo dispara la tarea programada varias veces por día hábil):
- 1. ¿pausado? ¿mercado abierto? (si no, no opera)
+Ciclo (lo dispara GitHub Actions cada hora con el mercado abierto, o el botón "Revisar ahora" de la web):
+ 0. toma el candado y procesa los pedidos de la web (depósitos/reinicio de práctica)
+ 1. ¿pausado? ¿mercado abierto? (si no, no opera; una revisión forzada con el mercado cerrado en modo real
+    solo analiza: nunca manda órdenes reales fuera de horario)
  2. cancela órdenes que quedaron pendientes de ruedas anteriores (solo IOL)
  3. corre el análisis completo contra la cartera real del broker
  4. decide qué ejecutar (salidas y entradas siempre; ajustes solo si superan la banda)
@@ -9,7 +11,9 @@ Ciclo (lo dispara la tarea programada varias veces por día hábil):
  6. envía ventas y después compras, todo a precio límite; registra cada respuesta
  7. si falta plata para el plan, avisa cuánto y por qué (pedido de fondos)
 
-Modo real: requiere `operador.modo: live` en settings Y `IOL_LIVE_TRADING=1` en el .env (lo activa el dueño).
+Modo real: requiere `operador.modo: live` en las preferencias Y una habilitación explícita del dueño: estado
+'modo_real' {habilitado: true} (desde la web) o `IOL_LIVE_TRADING=1` en el .env (uso local). Claude nunca los activa.
+Al final de la última corrida del día hábil manda el resumen diario por Telegram.
 """
 from __future__ import annotations
 
@@ -21,7 +25,8 @@ import pandas as pd
 from ..portfolio.risk import RiskError, limit_price, validate_orders
 from .aportes import detectar_aporte
 from .seguimiento import actualizar as actualizar_seguimiento
-from .bitacora import Bitacora
+from .bitacora import Bitacora, OperadorOcupado, abrir_bitacora
+from .comandos import procesar_comandos
 from .decision import (ajustar_a_caja, ajustar_ventas, claves_operadas_hoy, filtrar_por_banda, laminas_de_cotizaciones,
                        pedido_de_fondos, precio_sano, sin_repetidas)
 from .mercado import ahora_ar, feriados_ar, mercado_abierto
@@ -34,19 +39,32 @@ class ModoRealNoHabilitado(Exception):
 
 @dataclass
 class Resultado:
-    estado: str                      # operó | sin_cambios | cerrado | pausado | error
+    estado: str                      # operó | sin_cambios | analizado | cerrado | pausado | ocupado | error
     mensaje: str = ""
     enviadas: list[dict] = field(default_factory=list)
     pedido_fondos: dict | None = None
     corrida: str | None = None
 
 
-def _broker(modo: str, settings: dict):
+def motivo_sin_modo_real(settings: dict, estado: dict) -> str | None:
+    """None si el modo real está habilitado; si no, el motivo (en castellano llano)."""
+    if (settings.get("operador") or {}).get("modo") != "live":
+        return "El modo real no está elegido en las preferencias."
+    habilitacion = estado.get("modo_real")
+    if isinstance(habilitacion, dict) and habilitacion.get("habilitado") is True:
+        return None
+    if os.getenv("IOL_LIVE_TRADING") == "1":
+        return None
+    return "El modo real no está habilitado: hay que activarlo desde la web."
+
+
+def _broker(modo: str, settings: dict, bit: Bitacora | None = None):
     from ..servicio import crear_broker
 
     if modo == "live":
-        if os.getenv("IOL_LIVE_TRADING") != "1":
-            raise ModoRealNoHabilitado("Modo real pedido pero IOL_LIVE_TRADING no es 1 en el .env.")
+        motivo = motivo_sin_modo_real(settings, bit.estado() if bit is not None else {})
+        if motivo:
+            raise ModoRealNoHabilitado(motivo)
         return crear_broker("iol", settings)
     return crear_broker("paper", settings)
 
@@ -105,17 +123,19 @@ def _preparar(c, broker, bit: Bitacora, settings: dict, hoy) -> tuple[pd.DataFra
 
 def _enviar(ords: pd.DataFrame, broker, bit: Bitacora, settings: dict) -> list[dict]:
     slip = settings["riesgo"]["slippage_limite"]
+    modo = "paper" if broker.nombre == "paper" else "live"
     enviadas = []
     for _, o in ords.sort_values("lado", ascending=False).iterrows():   # VENDER antes que COMPRAR
         mult = float(o.get("mult", 1.0) or 1.0)
         px = limit_price(o["lado"], float(o["precio_ref"]), slip)
         extra = {"tipo": "bono"} if broker.nombre == "paper" and mult != 1.0 else {}
-        bit.registrar_intento(o["ticker"], o["lado"], cantidad=int(o["cantidad"]), precio=px, mult=mult)
+        bit.registrar_intento(o["ticker"], o["lado"], modo=modo, cantidad=int(o["cantidad"]), precio=px, mult=mult)
         try:
             r = broker.place_order(o["ticker"], o["lado"], int(o["cantidad"]), px, mult=mult, **extra)
         except Exception as e:  # el broker puede fallar a mitad de camino: se registra y sigue
             r = {"estado": "error", "mensaje": str(e)}
-        ev = bit.registrar("orden", ticker=o["ticker"], lado=o["lado"], cantidad=int(o["cantidad"]), precio=px,
+        ev = bit.registrar("orden", modo=modo, ticker=o["ticker"], lado=o["lado"], cantidad=int(o["cantidad"]),
+                           precio=px,
                            mult=mult, motivo=o.get("motivo"), estado=r.get("estado"), id=r.get("id"),
                            mensaje=r.get("mensaje"))
         enviadas.append(ev)
@@ -139,7 +159,7 @@ def _ventas_por_acreditar(bit: Bitacora, desde_ts: str | None) -> float:
     from datetime import datetime, timedelta
     corte = (datetime.fromisoformat(desde_ts) - timedelta(days=3)).isoformat()   # cubre fin de semana
     total = 0.0
-    for ev in bit.eventos(tipo="orden"):
+    for ev in bit.eventos(tipo="orden", desde=corte):
         if ev.get("lado") == "VENDER" and ev.get("estado") not in ("rechazada", "error") and ev["ts"] >= corte:
             total += float(ev.get("cantidad", 0)) * float(ev.get("precio", 0)) * float(ev.get("mult", 1) or 1)
     return total
@@ -199,41 +219,85 @@ def _guardar_aportes(bit: Bitacora, modo: str, total: float, broker) -> None:
     bit.guardar_estado(aportes=aportes)
 
 
-def operar(settings: dict, universe: list[dict], modo: str | None = None, forzar_horario: bool = False,
-           bitacora: Bitacora | None = None) -> Resultado:
+def _salteo(bit: Bitacora, modo: str, forzar_horario: bool, ahora) -> tuple[Resultado | None, bool]:
+    """(Resultado si no hay que correr, solo_analisis). Fuera de horario, el modo real nunca manda órdenes."""
+    if bit.estado().get("pausado"):
+        bit.registrar("salteo", modo=modo, motivo="operador pausado")
+        return Resultado("pausado", "El operador está pausado."), False
+    if forzar_horario and modo != "live":
+        return None, False
+    abierto = mercado_abierto(ahora, feriados_ar())
+    if not abierto and not forzar_horario:
+        return Resultado("cerrado", "Mercado cerrado: no se opera."), False
+    if not abierto:
+        bit.registrar("salteo", modo=modo, motivo="mercado cerrado: revisión sin órdenes reales")
+    return None, not abierto
+
+
+def _ciclo(settings: dict, universe: list[dict], modo: str, bit: Bitacora, ahora, solo_analisis: bool):
+    """Análisis + órdenes, con el candado tomado. Devuelve (corrida, enviadas, faltante)."""
     from ..servicio import correr
 
     cfg = settings.get("operador", {})
-    modo = modo or cfg.get("modo", "paper")
-    bit = bitacora or Bitacora()
-    if bit.estado().get("pausado"):
-        bit.registrar("salteo", motivo="operador pausado")
-        return Resultado("pausado", "El operador está pausado.")
+    broker = _broker(modo, settings, bit)
+    if not solo_analisis:
+        _cancelar_viejas(broker, bit, ahora.date())
+    c = correr(cfg.get("horizonte", settings["horizonte_default"]),
+               cfg.get("perfil", settings["perfil_default"]), broker.nombre, settings, universe, broker=broker)
+    aportes, aporte = _registrar_aportes(bit, modo, broker, float(c.meta["cartera"]["valor_total"]))
+    _seguir(bit, modo, c, aporte, settings)
+    if solo_analisis:
+        _guardar_aportes(bit, modo, aportes, broker)
+        return c, [], 0.0
+    ords, faltante = _preparar(c, broker, bit, settings, ahora.date())
+    cartera = c.meta["cartera"]
+    _validar_tecnico(ords, float(cartera["valor_total"]), settings)
+    if not ords.empty:
+        ords = validate_orders(ords, settings, cartera["posiciones"], broker.get_cash_ars(),
+                               valor_total=float(cartera["valor_total"]))
+    enviadas = _enviar(ords, broker, bit, settings)
+    _guardar_aportes(bit, modo, aportes, broker)          # foto de la caja después de operar
+    return c, enviadas, faltante
+
+
+def operar(settings: dict, universe: list[dict], modo: str | None = None, forzar_horario: bool = False,
+           bitacora: Bitacora | None = None) -> Resultado:
+    modo = modo or settings.get("operador", {}).get("modo", "paper")
+    bit = bitacora or abrir_bitacora()
     ahora = ahora_ar()
-    if not forzar_horario and not mercado_abierto(ahora, feriados_ar()):
-        return Resultado("cerrado", "Mercado cerrado: no se opera.")
     try:
         with bit.candado():
-            broker = _broker(modo, settings)
-            _cancelar_viejas(broker, bit, ahora.date())
-            c = correr(cfg.get("horizonte", settings["horizonte_default"]),
-                       cfg.get("perfil", settings["perfil_default"]), broker.nombre, settings, universe, broker=broker)
-            aportes, aporte = _registrar_aportes(bit, modo, broker, float(c.meta["cartera"]["valor_total"]))
-            _seguir(bit, modo, c, aporte, settings)
-            ords, faltante = _preparar(c, broker, bit, settings, ahora.date())
-            cartera = c.meta["cartera"]
-            _validar_tecnico(ords, float(cartera["valor_total"]), settings)
-            if not ords.empty:
-                ords = validate_orders(ords, settings, cartera["posiciones"], broker.get_cash_ars(),
-                                       valor_total=float(cartera["valor_total"]))
-            enviadas = _enviar(ords, broker, bit, settings)
-            _guardar_aportes(bit, modo, aportes, broker)          # foto de la caja después de operar
+            procesar_comandos(bit, settings)
+            temprano, solo_analisis = _salteo(bit, modo, forzar_horario, ahora)
+            if temprano:
+                return temprano
+            c, enviadas, faltante = _ciclo(settings, universe, modo, bit, ahora, solo_analisis)
+    except OperadorOcupado:
+        return Resultado("ocupado", "Otra corrida del operador está en curso.")
     except Exception as e:
         bit.registrar("error", modo=modo, error=f"{type(e).__name__}: {e}")
         notificar("Operador: error", f"{type(e).__name__}: {e}")
         return Resultado("error", f"{type(e).__name__}: {e}")
+    if solo_analisis:
+        return _cerrar_analisis(bit, modo, c)
     pedido = pedido_de_fondos(faltante, c.ranking, c.meta["cartera"]["posiciones"], settings)
-    return _cerrar(bit, modo, c, enviadas, pedido)
+    r = _cerrar(bit, modo, c, enviadas, pedido)
+    _resumen_diario(bit, modo, ahora_ar())          # hora al terminar: la última corrida del día
+    return r
+
+
+def _resumen_diario(bit: Bitacora, modo: str, ahora) -> None:
+    from .resumen import enviar_si_corresponde
+    try:
+        enviar_si_corresponde(bit, modo, ahora, feriados_ar())
+    except Exception as e:  # noqa: BLE001 - el resumen nunca rompe la corrida
+        bit.registrar("error", modo=modo, error=f"resumen diario: {type(e).__name__}: {e}")
+
+
+def _cerrar_analisis(bit: Bitacora, modo: str, c) -> Resultado:
+    bit.registrar("corrida", modo=modo, corrida=c.stamp, ordenes=0, solo_analisis=True,
+                  regimen=c.meta["macro"].get("regimen"), valor_total=c.meta["cartera"]["valor_total"])
+    return Resultado("analizado", "Mercado cerrado: se hizo el análisis, sin enviar órdenes.", [], None, c.stamp)
 
 
 def _cerrar(bit: Bitacora, modo: str, c, enviadas: list[dict], pedido: dict | None) -> Resultado:
@@ -241,7 +305,7 @@ def _cerrar(bit: Bitacora, modo: str, c, enviadas: list[dict], pedido: dict | No
                   regimen=c.meta["macro"].get("regimen"), valor_total=c.meta["cartera"]["valor_total"])
     bit.guardar_estado(ultimo_pedido_fondos=pedido)      # si ya no hace falta plata, el aviso se borra
     if pedido:
-        bit.registrar("pedido_fondos", **pedido)
+        bit.registrar("pedido_fondos", modo=modo, **pedido)
         notificar("El operador pide fondos", pedido["texto"])
     if enviadas:
         bit.guardar_estado(ultimo_rebalanceo=c.stamp)

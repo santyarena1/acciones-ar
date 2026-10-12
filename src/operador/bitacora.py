@@ -1,4 +1,8 @@
-"""Bitácora y estado del operador automático (data/operador/).
+"""Bitácora y estado del operador automático.
+
+Dos implementaciones con la misma interfaz: esta (archivos en data/operador/, desarrollo local) y
+`bitacora_db.BitacoraDB` (Postgres, en la nube). `abrir_bitacora()` elige según haya DATABASE_URL.
+Archivos:
 
 - bitacora.jsonl: un evento por línea (corridas, órdenes, respuestas del broker, avisos, errores). Nunca se borra.
 - estado.json: pausado, modo, fecha del último rebalanceo, último aviso de fondos.
@@ -39,6 +43,28 @@ def ahora_iso() -> str:
     return datetime.now(tz_argentina()).isoformat(timespec="seconds")
 
 
+def inicio_del_dia(dia: date) -> str:
+    """Medianoche de `dia` en hora Argentina, como ts ISO con zona."""
+    return datetime.combine(dia, datetime.min.time(), tz_argentina()).isoformat(timespec="seconds")
+
+
+def _pasa(ev: dict, tipo: str | None, tipos: tuple[str, ...] | None, desde: str | None) -> bool:
+    if tipo is not None and ev.get("tipo") != tipo:
+        return False
+    if tipos is not None and ev.get("tipo") not in tipos:
+        return False
+    return desde is None or str(ev.get("ts", "")) >= desde
+
+
+def abrir_bitacora():
+    """Bitácora en la base si hay DATABASE_URL; si no, en archivos locales."""
+    from .. import db
+    if db.hay_db():
+        from .bitacora_db import BitacoraDB
+        return BitacoraDB()
+    return Bitacora()
+
+
 class Bitacora:
     def __init__(self, base: Path | None = None):
         self.dir = base or DIR
@@ -61,7 +87,9 @@ class Bitacora:
         igual bloquea el reenvío en el día (la orden pudo haber entrado)."""
         return self.registrar("intento_orden", ticker=ticker, lado=lado, **datos)
 
-    def eventos(self, ultimos: int | None = None, tipo: str | None = None) -> list[dict]:
+    def eventos(self, ultimos: int | None = None, tipo: str | None = None, desde: str | None = None,
+                tipos: tuple[str, ...] | None = None) -> list[dict]:
+        """Eventos en orden cronológico. `desde`: ts ISO con zona (se comparan como texto, todos en hora AR)."""
         if not self.archivo.exists():
             return []
         out = []
@@ -70,7 +98,7 @@ class Bitacora:
                 ev = json.loads(linea)
             except json.JSONDecodeError:
                 continue
-            if isinstance(ev, dict) and (tipo is None or ev.get("tipo") == tipo):
+            if isinstance(ev, dict) and _pasa(ev, tipo, tipos, desde):
                 out.append(ev)
         return out[-ultimos:] if ultimos else out
 
@@ -78,8 +106,8 @@ class Bitacora:
         """(ticker, lado) enviados o intentados en `dia` (hora Argentina) que no fueron rechazados de forma
         definitiva: para no mandar dos veces la misma orden. Un error o timeout cuenta como enviada."""
         ultimo: dict[tuple[str, str], str] = {}
-        for ev in self.eventos():
-            if ev.get("tipo") not in ("orden", "intento_orden") or str(ev.get("ts", ""))[:10] != dia.isoformat():
+        for ev in self.eventos(tipos=("orden", "intento_orden"), desde=inicio_del_dia(dia)):
+            if str(ev.get("ts", ""))[:10] != dia.isoformat():
                 continue
             if not ev.get("ticker") or not ev.get("lado"):
                 continue

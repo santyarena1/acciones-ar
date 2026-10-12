@@ -11,6 +11,7 @@ import pandas as pd
 from .analysis.macro import asignacion_clases, regimen_macro
 from .analysis.tactico import consolidar_minimos, resolver_tactico
 from .config import sector_map, tipo_map
+from .broker.iol import tz_argentina
 from .guia import generar_guia
 from .pipeline import analyze, load_prices
 from .portfolio.equiponderado import objetivos_equiponderados
@@ -267,11 +268,12 @@ def _armar(horizonte, perfil, broker_nombre, settings, universe, posiciones, caj
                               "peso_actual": {t: pesos_act.get(t, 0.0) for t in targets}})
     guia = generar_guia(macro, asignacion, actual_clase, perfil, ranking, ordenes, rf if not rf.empty else None, reporte,
                         estrategia_ar=_estrategia_ar(settings), tactico=tactico)
-    meta = {"fecha": datetime.now().isoformat(timespec="minutes"), "horizonte": horizonte, "perfil": perfil,
+    ahora = datetime.now(tz_argentina())          # el runner de la nube está en UTC: todo en hora Argentina
+    meta = {"fecha": ahora.isoformat(timespec="minutes"), "horizonte": horizonte, "perfil": perfil,
             "broker": broker_nombre, "macro": macro, "asignacion": asignacion, "actual_por_clase": actual_clase,
             "cartera": {"caja": caja, "valor_total": total, "posiciones": posiciones},
             "reporte_semanal": reporte, "contexto": contexto, "escala": escala, "tactico": tactico or None}
-    c = Corrida(datetime.now().strftime("%Y%m%d_%H%M"), meta, ranking, rf, objetivos, ordenes, guia)
+    c = Corrida(ahora.strftime("%Y%m%d_%H%M"), meta, ranking, rf, objetivos, ordenes, guia)
     if guardar_corrida:
         guardar(c)
     return c

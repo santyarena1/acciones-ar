@@ -1,3 +1,5 @@
+# LEGADO (solo uso local): en producción el operador corre en GitHub Actions (.github/workflows/operador.yml).
+# Ver docs/DEPLOY.md. Si usás esto en la PC, no actives también la nube: serían dos operadores.
 # Un ciclo del operador automático. El modo (paper/live) sale de config/settings.yaml -> operador.modo;
 # el modo real además exige IOL_LIVE_TRADING=1 en el .env. Los martes baja antes el reporte de Gorostiaga.
 $ErrorActionPreference = "Continue"

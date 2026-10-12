@@ -1,15 +1,19 @@
-"""Broker simulado: ejecuta al precio límite y guarda el estado en un JSON.
+"""Broker simulado: ejecuta al precio límite y guarda el estado (caja, posiciones, historial).
+
+- Dónde se guarda: con DATABASE_URL, tabla `paper` clave 'cartera' (un upsert: atómico); si no, un JSON local.
+  Pasar `path` fuerza el archivo.
 
 - Lleva el precio promedio de compra (ppc) ponderado por posición. Igual que en IOL, el ppc NO
   incluye comisiones; las comisiones se descuentan/cargan en la caja.
 - Comisión por lado (incluye derechos de mercado) configurable en el constructor.
 - Renta fija: `mult=0.01` (cotiza cada 100 VN, cantidad en VN). Monto = cantidad * precio * mult.
-- Persistencia atómica (archivo temporal + os.replace) y compatible con el JSON viejo
-  (posiciones sin ppc).
+- Persistencia atómica (archivo temporal + os.replace, o una sola sentencia en la base) y compatible con el
+  JSON viejo (posiciones sin ppc).
 """
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 from datetime import datetime
@@ -17,6 +21,7 @@ from pathlib import Path
 
 from ..config import DATA_DIR
 from .base import Broker
+from .iol import tz_argentina
 
 COMISION_DEFAULT = 0.006  # por lado, incluye derechos de mercado
 _LADOS = ("COMPRAR", "VENDER")
@@ -26,37 +31,30 @@ class PaperBroker(Broker):
     nombre = "paper"
 
     def __init__(self, capital_inicial_ars: float, path: Path | None = None,
-                 comision: float = COMISION_DEFAULT):
+                 comision: float = COMISION_DEFAULT, almacen=None):
         if comision < 0 or comision >= 1:
             raise ValueError(f"Comisión inválida: {comision} (tiene que estar entre 0 y 1).")
         self.comision = float(comision)
-        self.path = Path(path) if path else DATA_DIR / "paper_state.json"
-        if self.path.exists():
-            try:
-                cargado = json.loads(self.path.read_text(encoding="utf-8"))
-            except (OSError, ValueError) as e:
-                raise ValueError(f"No pude leer el estado paper en {self.path}: {e}. "
-                                 "Revisalo o borralo para arrancar de cero.") from e
-            self.state = _normalizar_estado(cargado, capital_inicial_ars)
-        else:
-            self.state = {"caja": float(capital_inicial_ars), "posiciones": {}, "historial": []}
+        self.almacen = almacen or _almacen_por_defecto(path)
+        cargado = self.almacen.leer()
+        self.state = (_normalizar_estado(cargado, capital_inicial_ars) if cargado is not None
+                      else _estado_nuevo(capital_inicial_ars))
+
+    @property
+    def path(self) -> Path | None:
+        return getattr(self.almacen, "path", None)
 
     # --- persistencia ----------------------------------------------------
     def _save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(prefix=self.path.name + ".", suffix=".tmp", dir=self.path.parent)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                json.dump(self.state, fh, indent=2, ensure_ascii=False)
-                fh.flush()
-                os.fsync(fh.fileno())
-            os.replace(tmp, self.path)
-        except BaseException:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
+        self.almacen.escribir(self.state)
+
+    def reiniciar(self, capital_ars: float) -> None:
+        """Borra la cartera de práctica y arranca de cero con `capital_ars` de caja."""
+        capital = float(capital_ars)
+        if not math.isfinite(capital) or capital < 0:
+            raise ValueError("El capital de práctica tiene que ser un número mayor o igual a cero.")
+        self.state = _estado_nuevo(capital)
+        self._save()
 
     # --- consultas -------------------------------------------------------
     def get_positions(self) -> dict[str, dict]:
@@ -82,7 +80,7 @@ class PaperBroker(Broker):
 
     def depositar(self, monto: float) -> float:
         """Simula que el dueño ingresa plata a la cuenta de práctica. Devuelve la caja nueva."""
-        if not monto or monto <= 0:
+        if not monto or not math.isfinite(float(monto)) or monto <= 0:
             raise ValueError("El depósito tiene que ser mayor a cero.")
         self.state["caja"] = float(self.state["caja"]) + float(monto)
         self._save()
@@ -124,7 +122,7 @@ class PaperBroker(Broker):
                      "tipo": tipo or actual.get("tipo", "accion")}
         op_id = f"paper-{len(self.state['historial']) + 1}"
         registro = {
-            "id": op_id, "fecha": datetime.now().isoformat(timespec="seconds"), "ticker": ticker,
+            "id": op_id, "fecha": datetime.now(tz_argentina()).isoformat(timespec="seconds"), "ticker": ticker,
             "lado": lado, "cantidad": cantidad, "precio": precio, "mult": mult,
             "monto": round(monto, 2), "comision": round(comision, 2),
         }
@@ -177,3 +175,62 @@ def _normalizar_estado(raw: dict, capital_inicial_ars: float) -> dict:
         "posiciones": posiciones,
         "historial": list(raw.get("historial") or []),
     }
+
+
+def _estado_nuevo(capital: float) -> dict:
+    return {"caja": float(capital), "posiciones": {}, "historial": []}
+
+
+class AlmacenArchivo:
+    """Estado paper en un JSON local (escritura atómica)."""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+
+    def leer(self) -> dict | None:
+        if not self.path.exists():
+            return None
+        try:
+            return json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            raise ValueError(f"No pude leer el estado paper en {self.path}: {e}. "
+                             "Revisalo o borralo para arrancar de cero.") from e
+
+    def escribir(self, state: dict) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(prefix=self.path.name + ".", suffix=".tmp", dir=self.path.parent)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(state, fh, indent=2, ensure_ascii=False)
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp, self.path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+
+
+class AlmacenDB:
+    """Estado paper en la tabla `paper` (clave 'cartera'): {caja, posiciones, historial}."""
+    CLAVE = "cartera"
+
+    def __init__(self, engine=None):
+        self.engine = engine
+
+    def leer(self) -> dict | None:
+        from .. import db
+        return db.kv_get("paper", self.CLAVE, None, self.engine)
+
+    def escribir(self, state: dict) -> None:
+        from .. import db
+        db.kv_set("paper", self.CLAVE, state, self.engine)
+
+
+def _almacen_por_defecto(path: Path | None):
+    from .. import db
+    if path is None and db.hay_db():
+        return AlmacenDB()
+    return AlmacenArchivo(Path(path) if path else DATA_DIR / "paper_state.json")

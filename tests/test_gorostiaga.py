@@ -222,5 +222,6 @@ def test_actualizar_no_redescarga(tmp_path, monkeypatch):
     pedidos = sorted(c.args[0] for c in s.get.call_args_list)
     assert pedidos == [g.URL.format(n=n) for n in (211, 212, 215)]  # ni 213 ni 214
     assert len(nuevos) == 1 and (tmp_path / "S214.json").exists()
+    assert not list(tmp_path.glob("*.pdf"))                         # el PDF nunca queda guardado
     hist = g.cargar_historial(tmp_path)
     assert [r["numero"] for r in hist] == [212, 213]  # el S214.json tiene el texto de la 212

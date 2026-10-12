@@ -1,0 +1,7 @@
+{
+  "descripcion": "Vector de prueba AES-256-GCM (no es un secreto real). valor = \"v1:\" + base64(nonce[12] || ciphertext || tag[16]). La clave va en base64 como CLAVE_CIFRADO.",
+  "clave_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+  "nonce_hex": "6465666768696a6b6c6d6e6f",
+  "texto": "usuario-de-prueba@ejemplo.com ñ",
+  "valor": "v1:ZGVmZ2hpamtsbW5vPWirBwuAObNaB3KYqBAPnyOCY2DuAYMeyP/PJ5aDZvlED0LDboJMjAs1CxYdPAuA"
+}
