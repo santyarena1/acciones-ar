@@ -1,0 +1,42 @@
+# Configuración central. Todo umbral nuevo va acá, no en el código.
+
+horizonte_default: mediano
+
+# Peso del score técnico vs. fundamental según horizonte
+pesos_horizonte:
+  corto:   {tecnico: 0.70, fundamental: 0.30}
+  mediano: {tecnico: 0.45, fundamental: 0.55}
+  largo:   {tecnico: 0.20, fundamental: 0.80}
+
+# Umbrales de score (0-100) para las señales
+umbrales:
+  comprar: 68          # score >= comprar  -> COMPRAR / AGREGAR
+  vender: 40           # score <  vender   -> REDUCIR / VENDER
+  rsi_sobrecompra: 75  # si RSI > esto, la compra pasa a "ESPERAR"
+  cobertura_fund_minima: 0.4  # menos cobertura de datos fundamentales = se usa solo técnico y se marca
+
+portfolio:
+  peso_max_accion: 0.15
+  peso_max_sector: 0.35
+  caja_minima: 0.05
+  orden_minima_ars: 50000
+  paper_capital_inicial_ars: 10000000
+
+riesgo:
+  orden_maxima_ars: 2000000
+  ordenes_max_por_corrida: 10
+  slippage_limite: 0.005   # el precio límite se pone a último ±0.5%
+
+ejecucion:
+  mercado: bCBA
+  plazo: t1        # liquidación 24hs; verificar valores aceptados en la doc de IOL
+  tipo_orden: precioLimite
+
+datos:
+  fuente_precios: yfinance   # yfinance | iol
+  historia_anios: 3
+
+backtest:
+  costo_bps: 60      # comisión + derechos de mercado, por lado (0,60%)
+  top_n: 6
+  score_minimo: 55

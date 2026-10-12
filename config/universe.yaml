@@ -1,0 +1,25 @@
+# Universo: panel líder BYMA.
+# adr / ratio_adr: se usan para fundamentales (yfinance) y CCL implícito. VERIFICAR ratios: cambian con los años.
+# Sin ADR -> fundamentales solo desde data/fundamentals_manual.csv
+acciones:
+  - {ticker: ALUA,  sector: materiales,  adr: null,  ratio_adr: null}
+  - {ticker: BBAR,  sector: bancos,      adr: BBAR,  ratio_adr: 3}
+  - {ticker: BMA,   sector: bancos,      adr: BMA,   ratio_adr: 10}
+  - {ticker: BYMA,  sector: financiero,  adr: null,  ratio_adr: null}
+  - {ticker: CEPU,  sector: utilities,   adr: CEPU,  ratio_adr: 10}
+  - {ticker: COME,  sector: holding,     adr: null,  ratio_adr: null}
+  - {ticker: CRES,  sector: agro,        adr: CRESY, ratio_adr: 10}
+  - {ticker: EDN,   sector: utilities,   adr: EDN,   ratio_adr: 20}
+  - {ticker: GGAL,  sector: bancos,      adr: GGAL,  ratio_adr: 10}
+  - {ticker: IRSA,  sector: real_estate, adr: IRS,   ratio_adr: 10}
+  - {ticker: LOMA,  sector: materiales,  adr: LOMA,  ratio_adr: 5}
+  - {ticker: METR,  sector: utilities,   adr: null,  ratio_adr: null}
+  - {ticker: PAMP,  sector: energia,     adr: PAM,   ratio_adr: 25}
+  - {ticker: SUPV,  sector: bancos,      adr: SUPV,  ratio_adr: 5}
+  - {ticker: TECO2, sector: telecom,     adr: TEO,   ratio_adr: 5}
+  - {ticker: TGNO4, sector: utilities,   adr: null,  ratio_adr: null}
+  - {ticker: TGSU2, sector: energia,     adr: TGS,   ratio_adr: 5}
+  - {ticker: TRAN,  sector: utilities,   adr: null,  ratio_adr: null}
+  - {ticker: TXAR,  sector: materiales,  adr: null,  ratio_adr: null}
+  - {ticker: VALO,  sector: bancos,      adr: null,  ratio_adr: null}
+  - {ticker: YPFD,  sector: energia,     adr: YPF,   ratio_adr: 1}
