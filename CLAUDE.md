@@ -1,88 +1,83 @@
-# Acciones AR — Analizador de portfolio de acciones argentinas
+# Acciones AR — Operador automático de inversiones (IOL)
 
 ## Qué es
-Software en Python que analiza acciones argentinas (BYMA, panel líder) con análisis técnico + fundamental,
-asigna un score 0–100 por acción y por horizonte (corto / mediano / largo) y genera señales
-(COMPRAR / AGREGAR / MANTENER / REDUCIR / VENDER) y **órdenes sugeridas** para un portfolio.
+Sistema en Python que administra una cartera en IOL (InvertirOnline): analiza acciones argentinas (panel líder y
+general), CEDEARs, bonos soberanos en dólares, ONs, Lecaps/Boncaps y bonos CER; arma la cartera objetivo según el
+perfil del dueño y el contexto macro, y **opera solo** (compra y vende) cuando el análisis lo justifica.
+App web local (Streamlit) para ver todo y configurar. Más adelante: Vercel + bot de Telegram.
 
-**No es un bot de trading.** Es un sistema de inversión de portfolio con rebalanceo periódico (semanal/mensual).
-
-Dueño: Santy. Broker: **IOL (InvertirOnline)** vía API v2. Bull Market (Primary/pyRofex) podría sumarse después
-como otro adaptador en `src/broker/`.
+Dueño: Santy (no programa: todo lo que ve el usuario va en castellano llano, sin nombres internos).
 
 ## Reglas no negociables
-1. **Todo se analiza en dólares CCL.** Los precios en pesos están contaminados por inflación; cualquier
-   indicador o métrica de rendimiento se calcula sobre la serie `precio_ARS / CCL`.
-2. **La ejecución es determinística y la confirma un humano.** Ningún LLM (Grok, Claude ni otro) decide ni
-   envía órdenes. El flujo es: `analizar` → `ordenes` (CSV) → revisión humana → `ejecutar`.
-3. **Modo `paper` por defecto.** Operar en real requiere las tres cosas: `--live`, `IOL_LIVE_TRADING=1` en `.env`
-   y escribir `CONFIRMAR` en la terminal. No relajar esto.
-4. **Límites de riesgo duros** en `config/settings.yaml` (`riesgo:`): monto máximo por orden, órdenes máximas
-   por corrida, órdenes siempre a precio límite. Se validan en `src/portfolio/risk.py` antes de cualquier envío.
-5. **Nunca commitear `.env`** ni credenciales. Nunca loguear el token de IOL.
-6. **Sin lookahead en el backtest.** Los indicadores son causales (rolling/ewm) y se leen en la fecha de
-   rebalanceo. Los fundamentales actuales NO son point-in-time, por eso el backtest usa solo el score técnico
-   (está aclarado en el reporte).
+1. **Todo se analiza en dólares.** Locales: precio ARS / CCL. CEDEARs: precio del subyacente en USD.
+2. **Las decisiones de compra/venta son determinísticas** (motor cuantitativo). Ningún LLM decide ni envía órdenes.
+3. **Operación automática autorizada por el dueño (2026-10-11).** Modo real exige las dos cosas:
+   `operador.modo: live` (se elige en Configuración de la app, queda en `data/usuario.yaml`) **y**
+   `IOL_LIVE_TRADING=1` en `.env`. Por defecto: práctica (paper). Claude nunca activa el modo real, nunca carga
+   credenciales y nunca corre `operar --modo live`.
+4. **Sin topes de estrategia** (decisión del dueño), pero **sí protecciones técnicas** contra datos rotos y bugs:
+   no repetir órdenes en el día (bitácora + operaciones del broker), precio en vivo dentro de tolerancia, compras
+   nunca mayores a la caja disponible (ventas liquidan T+1), ninguna orden > `riesgo.orden_maxima_pct_cartera`,
+   candado entre corridas, calendario de feriados obligatorio. No relajar estas protecciones.
+5. **Nunca commitear `.env` ni `data/`.** Nunca loguear token, usuario ni clave de IOL o Telegram.
+6. **Sin lookahead en el backtest.** Fundamentales actuales no son point-in-time: el backtest usa solo técnico.
+7. **Evidencia antes que opinión**: un cambio de estrategia se justifica con backtest en subperíodos, sin sobreajustar.
+
+## Cómo funciona
+- `src/servicio.py::correr` — corrida completa: reporte semanal → precios/CCL/macro → fundamentales → scores →
+  asignación por clase (perfil + régimen macro) → objetivos (acciones/CEDEARs + renta fija) → órdenes → guía.
+- `src/operador/ejecutor.py::operar` — un ciclo del operador: pausa/horario → cancela pendientes viejas → `correr`
+  contra la cartera real del broker → decide (salidas y entradas siempre, ajustes solo si superan
+  `operador.banda_no_operar`) → protecciones → envía ventas y compras a precio límite → bitácora → pedido de fondos.
+- Tarea programada de Windows "AccionesAR - operador": cada 15 min, 11:05–16:55, lunes a viernes
+  (`scripts/instalar_tarea.ps1`). Logs en `reports/logs/`.
+- Estrategia por clase: acciones argentinas → cartera pareja de las más líquidas del panel líder (el modelo técnico
+  no le ganó a eso en el backtest 2018–2026); CEDEARs → score técnico+fundamental (sí le ganó); renta fija →
+  mejores por `score_rf` con filtro de calidad de datos.
 
 ## Estructura
 ```
-main.py                     CLI: analizar | ordenes | ejecutar | backtest | login-test
-config/settings.yaml        pesos por horizonte, umbrales, límites de portfolio y riesgo
-config/universe.yaml        universo (ticker, sector, ADR y ratio para fundamentales/CCL)
-data/fundamentals_manual.csv  overrides manuales de fundamentales (pisan a yfinance)
-src/config.py               carga de configuración
-src/broker/base.py          interfaz Broker (posiciones, caja, enviar orden)
-src/broker/iol.py           cliente API IOL v2 (token + refresh) y IOLBroker
-src/broker/paper.py         broker simulado con estado en data/paper_state.json
-src/data/prices.py          históricos (yfinance o IOL), CCL histórico, conversión a USD, caché
-src/data/fundamentals.py    métricas fundamentales (yfinance de los ADR + CSV manual)
-src/analysis/technical.py   indicadores (SMA, EMA, RSI, MACD, momentum, volatilidad) y score técnico
-src/analysis/fundamental.py score fundamental (calidad, valuación, salud financiera, crecimiento)
-src/analysis/scoring.py     combinación por horizonte y señales
-src/portfolio/rules.py      pesos objetivo (topes por acción/sector, caja mínima) y órdenes
-src/portfolio/risk.py       validación de órdenes contra límites de riesgo
-src/backtest/engine.py      backtest de rebalanceo mensual vs. buy & hold equiponderado (USD)
-src/pipeline.py             orquesta datos → análisis → tabla de resultados
-tests/                      tests con datos sintéticos (no usan red)
-reports/                    salidas CSV (gitignored)
+main.py                       CLI: app | analizar | operar | ejecutar | backtest | reportes | login-test
+app/                          app web (Streamlit). app.py navegación; paginas/*; etiquetas.py (nombres legibles);
+                              credenciales.py (.env: IOL, Telegram, modo real)
+config/settings.yaml          parámetros (umbrales, perfiles, macro, liquidez, riesgo, operador)
+config/universe.yaml          universo: lider / general / cedears
+config/renta_fija.yaml        términos de bonos y letras (con fuente y confianza)
+data/usuario.yaml             preferencias elegidas en la app (pisan settings.yaml)
+data/operador/                bitácora (jsonl) y estado del operador
+src/analysis/                 técnico, fundamental, relativo (percentiles), macro, scoring (señales, histéresis);
+                              capa táctica: riesgo_global, rotacion, eventos, tactico (config/eventos.yaml)
+src/portfolio/                rules (objetivos por clase), orders, risk (validación), renta_fija_alloc
+src/renta_fija/               valuación de bonos/letras (TIR, duration, curvas, calidad de datos)
+src/data/                     precios (yfinance, argentinadatos), fundamentales, reporte Gorostiaga
+src/broker/                   IOL (cliente + parsers) y paper (simulado)
+src/operador/                 ejecutor, decisión, mercado (horario BYMA), bitácora, notificaciones
+src/backtest/engine.py        backtest mensual en USD; tactico.py multi-activo 2008-2026 (perfil vs. capa táctica)
+src/guia.py, src/store.py     explicación en lenguaje llano; corridas guardadas en reports/corridas/
+tests/                        sin red (fixtures)
 ```
 
 ## Comandos
 ```bash
-pip install -r requirements.txt
-cp .env.example .env            # completar IOL_USERNAME / IOL_PASSWORD
-python main.py login-test       # verifica credenciales IOL
-python main.py analizar --horizonte mediano
-python main.py ordenes --horizonte mediano --broker paper
-python main.py ejecutar reports/ordenes_YYYYMMDD_HHMM.csv           # paper
-python main.py backtest --desde 2018-01-01
-pytest -q
+.venv/Scripts/python main.py app                       # app web (o doble click en Abrir_app.bat)
+.venv/Scripts/python main.py operar --forzar-horario   # un ciclo del operador en el modo configurado
+.venv/Scripts/python main.py analizar                  # análisis sin operar
+.venv/Scripts/python main.py backtest --universo cedears --desde 2018-01-01
+.venv/Scripts/python main.py backtest-tactico          # perfil fijo vs. régimen AR / riesgo global / rotación
+.venv/Scripts/python -m pytest -q
 ```
+Python: `py -3.13` (no hay `python` en PATH). Venv en `.venv`.
 
-## API de IOL (verificar contra https://api.invertironline.com antes de tocar)
-- Token: `POST /token` form `grant_type=password&username=&password=`; refresh con `grant_type=refresh_token`.
-- Cotización: `GET /api/v2/{mercado}/Titulos/{simbolo}/Cotizacion`
-- Histórico: `GET /api/v2/{mercado}/Titulos/{simbolo}/Cotizacion/seriehistorica/{desde}/{hasta}/{ajustada|sinAjustar}`
-- Portafolio: `GET /api/v2/portafolio/argentina` · Estado de cuenta: `GET /api/v2/estadocuenta`
-- Órdenes: `POST /api/v2/operar/Comprar` y `/Vender` (mercado, simbolo, cantidad, precio, plazo, validez, tipoOrden)
-- Mercado BYMA = `bCBA`. Los nombres exactos de campos de respuesta se parsean de forma defensiva en
-  `src/broker/iol.py`; si IOL cambia algo, arreglarlo ahí y en sus tests.
+## API de IOL
+Ver `src/broker/iol.py` (endpoints confirmados contra el swagger público). Bonos/letras/ONs: `cantidad` en VN y
+`precio` cada 100 VN. Pendiente de verificar con credenciales reales: casing de `titulo.tipo`, `saldos` del estado
+de cuenta, respuesta de `operar` (numeroOperacion), ticker con que la cartera lista bonos/ONs, `laminaMinima`.
 
-## Pendientes / ideas (en orden sugerido)
-- [ ] Validar parsers de IOL con respuestas reales y guardar fixtures anonimizados en `tests/fixtures/`.
-- [ ] Verificar ratios de ADR en `universe.yaml` (cambian con los años).
-- [ ] Fundamentales point-in-time (balances trimestrales de CNV) para poder backtestear el score completo.
-- [ ] Score de momentum relativo (percentil vs. universo) además del absoluto.
-- [ ] Contexto macro: riesgo país, brecha cambiaria, tasa — como ajuste del % de caja.
-- [ ] Sumar CEDEARs como universo opcional.
-- [ ] Dashboard (Streamlit o HTML) con el ranking y la cartera.
-- [ ] Adaptador Bull Market vía Primary API (pyRofex) implementando `Broker`.
-
-## Estilo
-- Python 3.11+, type hints, funciones puras en `analysis/` (sin red, sin I/O) para que sean testeables.
-- Comentarios y mensajes de CLI en español rioplatense.
-- Cualquier umbral nuevo va a `settings.yaml`, no hardcodeado.
-- Antes de cerrar un cambio: `pytest -q` en verde.
+## Pendientes
+- [ ] Verificar IOL con cuenta real (lectura) apenas el dueño cargue credenciales.
+- [ ] Bot de Telegram (comandos /estado /cartera /pausar /reanudar /reporte + resumen diario) — al pasar a Vercel.
+- [ ] Vercel: UI en Next.js + funciones Python + cron + base de datos + login.
+- [ ] Tick size de BYMA en precios límite.
 
 ## Descargo
-Herramienta de análisis personal. No es asesoramiento financiero; las decisiones de inversión son del usuario.
+Herramienta personal. No es asesoramiento financiero; las decisiones y el riesgo son del dueño.

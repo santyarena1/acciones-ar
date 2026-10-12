@@ -1,0 +1,14 @@
+[
+  {"ultimoPrecio": 6520.0, "variacion": 1.32, "apertura": 6440.0, "maximo": 6560.0, "minimo": 6405.0,
+   "fechaHora": "2026-10-09T17:00:00", "tendencia": "sube", "cierreAnterior": 6435.0, "montoOperado": 9876543210.5,
+   "volumenNominal": 1520345, "precioPromedio": 6498.7, "moneda": "peso_Argentino", "precioAjuste": 0.0,
+   "interesesAbiertos": 0.0, "puntas": null, "cantidadOperaciones": 8421},
+  {"ultimoPrecio": 6435.0, "variacion": -0.4, "apertura": 6460.0, "maximo": 6480.0, "minimo": 6400.0,
+   "fechaHora": "2026-10-08T17:00:00", "tendencia": "baja", "cierreAnterior": 6461.0, "montoOperado": 7012345678.0,
+   "volumenNominal": 1090332, "precioPromedio": 6441.2, "moneda": "peso_Argentino", "precioAjuste": 0.0,
+   "interesesAbiertos": 0.0, "puntas": null, "cantidadOperaciones": 6012},
+  {"ultimoPrecio": 6461.0, "variacion": 0.9, "apertura": 6400.0, "maximo": 6470.0, "minimo": 6390.0,
+   "fechaHora": "2026-10-07T17:00:00", "tendencia": "sube", "cierreAnterior": 6403.4, "montoOperado": 6512345678.0,
+   "volumenNominal": 1009100, "precioPromedio": 6430.0, "moneda": "peso_Argentino", "precioAjuste": 0.0,
+   "interesesAbiertos": 0.0, "puntas": null, "cantidadOperaciones": 5800}
+]

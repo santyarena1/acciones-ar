@@ -1,0 +1,14 @@
+{
+  "titulos": [
+    {"simbolo": "AAPL", "descripcion": "Cedear Apple Inc.",
+     "puntas": {"cantidadCompra": 100, "precioCompra": 14890.0, "precioVenta": 14910.0, "cantidadVenta": 60},
+     "ultimoPrecio": 14900.0, "variacionPorcentual": 0.81, "apertura": 14800.0, "maximo": 14950.0, "minimo": 14760.0,
+     "ultimoCierre": 14780.0, "volumen": 98000, "cantidadOperaciones": 2210, "fecha": "2026-10-09T16:59:40",
+     "mercado": "BCBA", "moneda": "AR$"},
+    {"simbolo": "SPY", "descripcion": "Cedear SPDR SP 500",
+     "puntas": {"cantidadCompra": 5, "precioCompra": 36500.0, "precioVenta": 36600.0, "cantidadVenta": 9},
+     "ultimoPrecio": 36550.0, "variacionPorcentual": 0.42, "apertura": 36400.0, "maximo": 36700.0, "minimo": 36350.0,
+     "ultimoCierre": 36397.0, "volumen": 41000, "cantidadOperaciones": 1450, "fecha": "2026-10-09T16:59:55",
+     "mercado": "BCBA", "moneda": "AR$"}
+  ]
+}

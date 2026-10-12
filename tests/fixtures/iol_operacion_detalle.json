@@ -1,0 +1,12 @@
+{
+  "numero": 71234567, "mercado": "bCBA", "simbolo": "GGAL", "moneda": "peso_Argentino", "tipo": "compra",
+  "fechaAlta": "2026-10-09T11:05:12.47", "validez": "2026-10-09T17:00:00", "fechaOperado": null,
+  "estadoActual": "en_Proceso",
+  "estados": [{"detalle": "Iniciada", "fecha": "2026-10-09T11:05:12.47"},
+              {"detalle": "En Proceso", "fecha": "2026-10-09T11:05:13.10"}],
+  "aranceles": [{"tipo": "Comision", "neto": 325.0, "iva": 68.25, "moneda": "PESO_ARGENTINO"}],
+  "operaciones": [],
+  "precio": 6500.0, "cantidad": 10.0, "monto": 65000.0, "fondosParaOperacion": 65393.25,
+  "montoOperacion": 0.0, "modalidad": "precio_Limite", "arancelesARS": 393.25, "arancelesUSD": 0.0,
+  "plazo": "a24horas"
+}

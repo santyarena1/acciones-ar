@@ -12,7 +12,7 @@ from src.config import load_settings  # noqa: E402
 
 @pytest.fixture
 def settings():
-    return load_settings()
+    return load_settings(usuario=Path(__file__).parent / "_sin_preferencias.yaml")  # tests sin prefs del usuario
 
 
 def serie(drift: float, n: int = 400, seed: int = 0, vol: float = 0.01) -> pd.DataFrame:

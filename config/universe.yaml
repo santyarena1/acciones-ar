@@ -1,7 +1,12 @@
-# Universo: panel líder BYMA.
-# adr / ratio_adr: se usan para fundamentales (yfinance) y CCL implícito. VERIFICAR ratios: cambian con los años.
-# Sin ADR -> fundamentales solo desde data/fundamentals_manual.csv
-acciones:
+# Universo de análisis. Tres grupos: panel líder, panel general y CEDEARs.
+# Todo lo que no tenga liquidez suficiente (ver settings.yaml -> liquidez) se analiza pero NO recibe compras.
+#
+# Acciones locales: se analizan con el precio en ARS de BYMA dividido por el CCL.
+#   adr / ratio_adr: para fundamentales (yfinance) y para cruzar con el reporte semanal. VERIFICAR ratios.
+# CEDEARs: se analizan con el precio en USD del subyacente (más limpio que el CEDEAR en pesos / CCL);
+#   las órdenes se arman con el precio en ARS del CEDEAR en BYMA.
+
+lider:
   - {ticker: ALUA,  sector: materiales,  adr: null,  ratio_adr: null}
   - {ticker: BBAR,  sector: bancos,      adr: BBAR,  ratio_adr: 3}
   - {ticker: BMA,   sector: bancos,      adr: BMA,   ratio_adr: 10}
@@ -20,6 +25,106 @@ acciones:
   - {ticker: TGNO4, sector: utilities,   adr: null,  ratio_adr: null}
   - {ticker: TGSU2, sector: energia,     adr: TGS,   ratio_adr: 5}
   - {ticker: TRAN,  sector: utilities,   adr: null,  ratio_adr: null}
-  - {ticker: TXAR,  sector: materiales,  adr: null,  ratio_adr: null}
+  - {ticker: TXAR,  sector: materiales,  adr: null,  ratio_adr: null}   # TX (Ternium SA) es la controlante, no la misma empresa
   - {ticker: VALO,  sector: bancos,      adr: null,  ratio_adr: null}
   - {ticker: YPFD,  sector: energia,     adr: YPF,   ratio_adr: 1}
+
+general:
+  - {ticker: ECOG,  sector: utilities}
+  - {ticker: CVH,   sector: telecom}
+  - {ticker: BHIP,  sector: bancos}
+  - {ticker: BPAT,  sector: bancos}
+  - {ticker: MORI,  sector: consumo}
+  - {ticker: AUSO,  sector: infraestructura}
+  - {ticker: OEST,  sector: infraestructura}
+  - {ticker: AGRO,  sector: agro}
+  - {ticker: SAMI,  sector: agro}
+  - {ticker: INVJ,  sector: agro}
+  - {ticker: LEDE,  sector: agro}
+  - {ticker: CADO,  sector: agro}
+  - {ticker: HARG,  sector: materiales}
+  - {ticker: CELU,  sector: materiales}
+  - {ticker: FERR,  sector: materiales}
+  - {ticker: FIPL,  sector: materiales}
+  - {ticker: BOLT,  sector: holding}
+  - {ticker: MOLA,  sector: consumo}
+  - {ticker: MOLI,  sector: consumo}
+  - {ticker: SEMI,  sector: consumo}
+  - {ticker: HAVA,  sector: consumo}
+  - {ticker: PATA,  sector: consumo}
+  - {ticker: GARO,  sector: consumo}
+  - {ticker: LONG,  sector: consumo}
+  - {ticker: GRIM,  sector: consumo}
+  - {ticker: RIGO,  sector: consumo}
+  - {ticker: INTR,  sector: consumo}
+  - {ticker: CECO2, sector: utilities}
+  - {ticker: DGCU2, sector: utilities}
+  - {ticker: CGPA2, sector: utilities}
+  - {ticker: GBAN,  sector: utilities}
+  - {ticker: CAPX,  sector: energia}
+  - {ticker: CTIO,  sector: real_estate}
+  - {ticker: GCDI,  sector: real_estate}
+  - {ticker: GCLA,  sector: telecom}
+  - {ticker: ROSE,  sector: salud}
+  - {ticker: DOME,  sector: consumo}
+  - {ticker: CARC,  sector: consumo}
+
+cedears:
+  # ETFs (sin fundamentales: se evalúan solo por técnico)
+  - {ticker: SPY,   sector: etf_indices, subyacente: SPY}
+  - {ticker: QQQ,   sector: etf_indices, subyacente: QQQ}
+  - {ticker: DIA,   sector: etf_indices, subyacente: DIA}
+  - {ticker: IWM,   sector: etf_indices, subyacente: IWM}
+  - {ticker: EEM,   sector: etf_indices, subyacente: EEM}
+  - {ticker: EWZ,   sector: etf_indices, subyacente: EWZ}
+  - {ticker: XLE,   sector: etf_sector,  subyacente: XLE}
+  - {ticker: XLF,   sector: etf_sector,  subyacente: XLF}
+  - {ticker: URA,   sector: etf_sector,  subyacente: URA}
+  - {ticker: ARKK,  sector: etf_sector,  subyacente: ARKK}
+  - {ticker: GLD,   sector: metales,     subyacente: GLD}
+  - {ticker: SLV,   sector: metales,     subyacente: SLV}
+  # Acciones del exterior
+  - {ticker: AAPL,  sector: tecnologia,  subyacente: AAPL}
+  - {ticker: MSFT,  sector: tecnologia,  subyacente: MSFT}
+  - {ticker: NVDA,  sector: tecnologia,  subyacente: NVDA}
+  - {ticker: GOOGL, sector: tecnologia,  subyacente: GOOGL}
+  - {ticker: META,  sector: tecnologia,  subyacente: META}
+  - {ticker: AMD,   sector: tecnologia,  subyacente: AMD}
+  - {ticker: AVGO,  sector: tecnologia,  subyacente: AVGO}
+  - {ticker: INTC,  sector: tecnologia,  subyacente: INTC}
+  - {ticker: QCOM,  sector: tecnologia,  subyacente: QCOM}
+  - {ticker: TSM,   sector: tecnologia,  subyacente: TSM}
+  - {ticker: ASML,  sector: tecnologia,  subyacente: ASML}
+  - {ticker: ORCL,  sector: tecnologia,  subyacente: ORCL}
+  - {ticker: ADBE,  sector: tecnologia,  subyacente: ADBE}
+  - {ticker: CRM,   sector: tecnologia,  subyacente: CRM}
+  - {ticker: GLOB,  sector: tecnologia,  subyacente: GLOB}
+  - {ticker: AMZN,  sector: consumo_ext, subyacente: AMZN}
+  - {ticker: TSLA,  sector: consumo_ext, subyacente: TSLA}
+  - {ticker: NFLX,  sector: consumo_ext, subyacente: NFLX}
+  - {ticker: MELI,  sector: consumo_ext, subyacente: MELI}
+  - {ticker: BABA,  sector: consumo_ext, subyacente: BABA}
+  - {ticker: KO,    sector: consumo_ext, subyacente: KO}
+  - {ticker: PEP,   sector: consumo_ext, subyacente: PEP}
+  - {ticker: WMT,   sector: consumo_ext, subyacente: WMT}
+  - {ticker: COST,  sector: consumo_ext, subyacente: COST}
+  - {ticker: NU,    sector: financiero_ext, subyacente: NU}
+  - {ticker: JPM,   sector: financiero_ext, subyacente: JPM}
+  - {ticker: V,     sector: financiero_ext, subyacente: V}
+  - {ticker: MA,    sector: financiero_ext, subyacente: MA}
+  - {ticker: BRKB,  sector: financiero_ext, subyacente: BRK-B}
+  - {ticker: ITUB,  sector: financiero_ext, subyacente: ITUB}
+  - {ticker: BBD,   sector: financiero_ext, subyacente: BBD}
+  - {ticker: XOM,   sector: energia_ext, subyacente: XOM}
+  - {ticker: CVX,   sector: energia_ext, subyacente: CVX}
+  - {ticker: VIST,  sector: energia_ext, subyacente: VIST}
+  - {ticker: PBR,   sector: energia_ext, subyacente: PBR}
+  - {ticker: VALE,  sector: mineria,     subyacente: VALE}
+  - {ticker: NEM,   sector: mineria,     subyacente: NEM}
+  - {ticker: B,     sector: mineria,     subyacente: B}
+  - {ticker: PAAS,  sector: mineria,     subyacente: PAAS}
+  - {ticker: LLY,   sector: salud_ext,   subyacente: LLY}
+  - {ticker: JNJ,   sector: salud_ext,   subyacente: JNJ}
+  - {ticker: PFE,   sector: salud_ext,   subyacente: PFE}
+  - {ticker: UNH,   sector: salud_ext,   subyacente: UNH}
+  - {ticker: BA,    sector: industria_ext, subyacente: BA}

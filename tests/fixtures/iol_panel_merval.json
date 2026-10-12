@@ -1,0 +1,19 @@
+{
+  "titulos": [
+    {"simbolo": "GGAL", "descripcion": "Grupo Financiero Galicia",
+     "puntas": {"cantidadCompra": 300, "precioCompra": 6515.0, "precioVenta": 6525.0, "cantidadVenta": 150},
+     "ultimoPrecio": 6520.0, "variacionPorcentual": 1.32, "apertura": 6440.0, "maximo": 6560.0, "minimo": 6405.0,
+     "ultimoCierre": 6435.0, "volumen": 1520345, "cantidadOperaciones": 8421, "fecha": "2026-10-09T16:59:58",
+     "tipoOpcion": null, "precioEjercicio": null, "fechaVencimiento": null, "mercado": "BCBA", "moneda": "AR$"},
+    {"simbolo": "YPFD", "descripcion": "YPF S.A.",
+     "puntas": {"cantidadCompra": 10, "precioCompra": 38100.0, "precioVenta": 38200.0, "cantidadVenta": 25},
+     "ultimoPrecio": 38150.0, "variacionPorcentual": -0.55, "apertura": 38400.0, "maximo": 38500.0, "minimo": 37900.0,
+     "ultimoCierre": 38360.0, "volumen": 210450, "cantidadOperaciones": 5120, "fecha": "2026-10-09T16:59:51",
+     "tipoOpcion": null, "precioEjercicio": null, "fechaVencimiento": null, "mercado": "BCBA", "moneda": "AR$"},
+    {"simbolo": "PAMP", "descripcion": "Pampa Energia S.A.",
+     "puntas": null,
+     "ultimoPrecio": 3890.0, "variacionPorcentual": 0.0, "apertura": 3890.0, "maximo": 3890.0, "minimo": 3890.0,
+     "ultimoCierre": 3890.0, "volumen": 0, "cantidadOperaciones": 0, "fecha": "2026-10-09T11:00:00",
+     "tipoOpcion": null, "precioEjercicio": null, "fechaVencimiento": null, "mercado": "BCBA", "moneda": "AR$"}
+  ]
+}

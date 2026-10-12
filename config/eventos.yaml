@@ -1,0 +1,79 @@
+# Calendario de eventos de alto impacto (lo usa src/analysis/eventos.py).
+# Solo fechas con fuente. Lo dudoso NO se carga:
+#   - Revisiones del FMI: las fechas dependen del directorio del FMI y no se publican con anticipación fija.
+#   - PASO 2027: la ley fija el segundo domingo de agosto, pero en 2025 se suspendieron y hay proyectos para
+#     eliminarlas. Cargar cuando se confirme la convocatoria.
+#   - Reuniones de la Fed 2027: el calendario se publica a mediados de 2026; verificar y cargar.
+# reduccion_ar: fracción de la exposición argentina (acciones + bonos en dólares) que se baja durante la ventana
+#   [fecha - dias_antes, fecha + dias_despues]. 0 = solo aviso. Solo actúa con tactico.eventos.aplicar: true.
+#   Estudio 2007-2025 (19 elecciones nacionales, canasta de ADRs argentinos): en las 4 semanas previas la canasta
+#   subió +3,4% en promedio y el día después +1,6% (mediana +2%, 7 de 19 negativas; extremos -49% PASO 2019,
+#   +35% legislativas 2025). Cubrirse antes de elecciones costó en promedio: es un seguro, no una ganancia.
+eventos:
+  - nombre: "Elecciones legislativas de EE.UU."
+    fecha: 2026-11-03
+    tipo: eleccion_eeuu
+    region: eeuu
+    dias_antes: 14
+    reduccion_ar: 0.0
+    fuente: "Ley federal de EE.UU.: primer martes después del primer lunes de noviembre"
+    confianza: alta
+  - nombre: "Reunión de la Fed (tasas)"
+    fecha: 2026-10-28
+    tipo: fed
+    region: eeuu
+    dias_antes: 7
+    reduccion_ar: 0.0
+    fuente: "Calendario FOMC 2026 publicado por la Reserva Federal (verificar en federalreserve.gov)"
+    confianza: media
+    nota: "Antes de las reuniones de la Fed el mercado históricamente subió (no se reduce nada)"
+  - nombre: "Reunión de la Fed (tasas)"
+    fecha: 2026-12-09
+    tipo: fed
+    region: eeuu
+    dias_antes: 7
+    reduccion_ar: 0.0
+    fuente: "Calendario FOMC 2026 publicado por la Reserva Federal (verificar en federalreserve.gov)"
+    confianza: media
+  - nombre: "Pago de Bonares y Globales (AL/GD)"
+    fecha: 2027-01-09
+    tipo: pago_deuda_ar
+    region: argentina
+    dias_antes: 21
+    reduccion_ar: 0.0
+    fuente: "Prospecto del canje 2020: cupón y amortización el 9 de enero y el 9 de julio (si es inhábil, el siguiente hábil)"
+    confianza: alta
+  - nombre: "Pago de Bonares y Globales (AL/GD)"
+    fecha: 2027-07-09
+    tipo: pago_deuda_ar
+    region: argentina
+    dias_antes: 21
+    reduccion_ar: 0.0
+    fuente: "Prospecto del canje 2020: cupón y amortización el 9 de enero y el 9 de julio"
+    confianza: alta
+  - nombre: "Elecciones presidenciales en Argentina (primera vuelta)"
+    fecha: 2027-10-24
+    tipo: eleccion_ar
+    region: argentina
+    dias_antes: 21
+    dias_despues: 0
+    reduccion_ar: 0.25
+    fuente: "Código Electoral Nacional, art. 53: cuarto domingo de octubre (falta la convocatoria oficial)"
+    confianza: alta
+  - nombre: "Posible balotaje presidencial en Argentina"
+    fecha: 2027-11-21
+    tipo: eleccion_ar
+    region: argentina
+    dias_antes: 21
+    dias_despues: 0
+    reduccion_ar: 0.25
+    fuente: "Constitución Nacional art. 96: segunda vuelta dentro de los 30 días (2015 y 2023: 4 semanas después). Solo si hay balotaje"
+    confianza: media
+  - nombre: "Pago de Bonares y Globales (AL/GD)"
+    fecha: 2028-01-09
+    tipo: pago_deuda_ar
+    region: argentina
+    dias_antes: 21
+    reduccion_ar: 0.0
+    fuente: "Prospecto del canje 2020"
+    confianza: alta

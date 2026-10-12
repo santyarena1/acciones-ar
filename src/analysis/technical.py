@@ -53,6 +53,7 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     out["mom_12m_1m"] = c.shift(DIAS_1M) / c.shift(DIAS_12M) - 1
     out["vol_anual"] = c.pct_change().rolling(DIAS_3M, min_periods=40).std() * math.sqrt(252)
     out["dist_max_52s"] = c / c.rolling(DIAS_12M, min_periods=60).max() - 1
+    out["mom_ajustado"] = out["mom_12m_1m"] / out["vol_anual"]
     if "volume" in df.columns:
         v = df["volume"].astype(float)
         out["vol_ratio"] = v.rolling(20).mean() / v.rolling(100, min_periods=50).mean()

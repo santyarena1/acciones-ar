@@ -1,26 +1,40 @@
-# Acciones AR
+# Acciones AR — operador automático de inversiones para IOL
 
-Analizador de portfolio de acciones argentinas (panel líder BYMA): score técnico + fundamental en USD CCL,
-señales por horizonte y órdenes sugeridas. Ejecución en modo simulado por defecto; real vía API de IOL con
-triple confirmación.
+Sistema en Python que administra una cartera en **IOL (InvertirOnline)**: analiza acciones argentinas, CEDEARs,
+bonos soberanos en dólares, obligaciones negociables, Lecaps/Boncaps y bonos CER; arma una cartera según un perfil
+de riesgo y **opera solo** cuando su análisis lo justifica, con protecciones técnicas (sin órdenes duplicadas,
+precio en vivo dentro de tolerancia, nunca más compras que caja disponible, calendario de feriados BYMA).
 
-## Arranque rápido
+> ⚠️ Herramienta de análisis personal. **No es asesoramiento financiero.** Invertir implica riesgo de pérdida.
+> Rendimientos pasados (incluidos los backtests de este repo) no garantizan resultados futuros.
+
+## Qué hace
+- **Análisis** en dólares (locales: precio / CCL; CEDEARs: subyacente en USD): técnico y fundamental, absoluto y
+  relativo al universo; renta fija con TIR, duration, curvas, valor relativo y filtro de calidad de datos.
+- **Cartera por clase de activo** según perfil (conservador / moderado / medio agresivo / agresivo), escalada al
+  capital disponible; efectivo sobrante estacionado en Lecap corta.
+- **Operador**: corre cada hora con el mercado abierto, decide si operar, detecta depósitos, se compara contra
+  "no hacer nada" (S&P 500 + Merval) y avisa caídas fuertes. Modo práctica por defecto.
+- **Contexto**: reporte semanal de Gorostiaga Bursátil (macro, precios objetivo, eventos), riesgo global, rotación
+  de sectores y calendario de eventos (informativos: en el backtest 2008–2026 no mejoraron el resultado).
+- **App web** (Streamlit) en castellano: inicio, cartera, oportunidades, historial y configuración.
+
+## Uso
 ```bash
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env                                 # completar usuario/clave de IOL
-pytest -q
-python main.py analizar --horizonte mediano
-python main.py ordenes --broker paper
-python main.py backtest --desde 2018-01-01
+py -3.13 -m venv .venv
+.venv/Scripts/python -m pip install -r requirements.txt
+.venv/Scripts/python -m pytest -q
+.venv/Scripts/python main.py app            # app web en http://localhost:8501
+.venv/Scripts/python main.py operar --forzar-horario   # un ciclo del operador (modo práctica)
+.venv/Scripts/python main.py backtest --universo cedears --desde 2018-01-01
 ```
+Credenciales de IOL y Telegram se cargan desde la app (Configuración) y quedan solo en `.env` local
+(ver `.env.example`). El modo real requiere activarlo explícitamente en la app.
 
-## Habilitar la API de IOL
-Desde tu cuenta: consulta → Tipo "Mi cuenta" → Razón "Api". Cuando esté activa: `python main.py login-test`.
+## Evidencia (backtests en USD, con costos; sesgo de supervivencia: universo actual)
+| Parte | Estrategia | Resultado 2018–2026 |
+|---|---|---|
+| CEDEARs | score técnico + fundamental | 27,8% anual vs 21,4% equiponderado |
+| Acciones AR | 8 más líquidas del panel líder, equiponderadas | 9,0% anual (el score perdía: −0,7%) |
 
-## Con Claude Code
-Abrí la carpeta con `claude`. El contexto del proyecto está en `CLAUDE.md`. Comandos:
-`/analizar mediano`, `/revisar-ordenes`, `/nueva-metrica <descripción>`.
-Claude Code tiene bloqueado `ejecutar --live` y leer `.env` (ver `.claude/settings.json`).
-
-> Herramienta de análisis personal. No es asesoramiento financiero.
+Detalle de arquitectura y reglas en [CLAUDE.md](CLAUDE.md).

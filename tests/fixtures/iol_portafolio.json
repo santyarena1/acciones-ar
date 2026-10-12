@@ -1,0 +1,175 @@
+{
+  "pais": "argentina",
+  "activos": [
+    {
+      "cantidad": 120,
+      "comprometido": 0,
+      "puntosVariacion": 85.0,
+      "variacionDiaria": 1.32,
+      "ultimoPrecio": 6520.0,
+      "ppc": 5480.25,
+      "gananciaPorcentaje": 18.97,
+      "gananciaDinero": 124770.0,
+      "valorizado": 782400.0,
+      "titulo": {
+        "simbolo": "GGAL",
+        "descripcion": "Grupo Financiero Galicia",
+        "pais": "argentina",
+        "mercado": "bCBA",
+        "tipo": "ACCIONES",
+        "plazo": "t1",
+        "moneda": "peso_Argentino"
+      },
+      "parking": null
+    },
+    {
+      "cantidad": 35,
+      "comprometido": 0,
+      "puntosVariacion": -210.0,
+      "variacionDiaria": -0.55,
+      "ultimoPrecio": 38150.0,
+      "ppc": 36900.0,
+      "gananciaPorcentaje": 3.39,
+      "gananciaDinero": 43750.0,
+      "valorizado": 1335250.0,
+      "titulo": {
+        "simbolo": "YPFD",
+        "descripcion": "YPF S.A.",
+        "pais": "argentina",
+        "mercado": "bCBA",
+        "tipo": "aCCIONES",
+        "plazo": "t1",
+        "moneda": "peso_Argentino"
+      },
+      "parking": {
+        "disponibleInmediato": 35
+      }
+    },
+    {
+      "cantidad": 40,
+      "comprometido": 0,
+      "puntosVariacion": 120.0,
+      "variacionDiaria": 0.81,
+      "ultimoPrecio": 14900.0,
+      "ppc": 13250.5,
+      "gananciaPorcentaje": 12.45,
+      "gananciaDinero": 65980.0,
+      "valorizado": 596000.0,
+      "titulo": {
+        "simbolo": "AAPL",
+        "descripcion": "Cedear Apple Inc.",
+        "pais": "argentina",
+        "mercado": "bCBA",
+        "tipo": "CEDEARS",
+        "plazo": "t1",
+        "moneda": "peso_Argentino"
+      },
+      "parking": null
+    },
+    {
+      "cantidad": 1500,
+      "comprometido": 0,
+      "puntosVariacion": 300.0,
+      "variacionDiaria": 0.4,
+      "ultimoPrecio": 75800.0,
+      "ppc": 71000.0,
+      "gananciaPorcentaje": 6.76,
+      "gananciaDinero": 72000.0,
+      "valorizado": 1137000.0,
+      "titulo": {
+        "simbolo": "AL30",
+        "descripcion": "Bonos Rep. Arg. USD Step Up 2030",
+        "pais": "argentina",
+        "mercado": "bCBA",
+        "tipo": "TitulosPublicos",
+        "plazo": "t1",
+        "moneda": "peso_Argentino"
+      },
+      "parking": null
+    },
+    {
+      "cantidad": 5000,
+      "comprometido": 0,
+      "puntosVariacion": 0,
+      "variacionDiaria": 0.1,
+      "ultimoPrecio": 105.0,
+      "ppc": 101.0,
+      "gananciaPorcentaje": 3.9,
+      "gananciaDinero": 200.0,
+      "valorizado": 5250.0,
+      "titulo": {
+        "simbolo": "YCA6O",
+        "descripcion": "ON YPF Clase 26",
+        "pais": "argentina",
+        "mercado": "bCBA",
+        "tipo": "ObligacionesNegociables",
+        "plazo": "t1",
+        "moneda": "dolar_Estadounidense"
+      },
+      "parking": null
+    },
+    {
+      "cantidad": 100000,
+      "comprometido": 0,
+      "puntosVariacion": 0.1,
+      "variacionDiaria": 0.1,
+      "ultimoPrecio": 104.5,
+      "ppc": 102.0,
+      "gananciaPorcentaje": 2.45,
+      "gananciaDinero": 2500.0,
+      "valorizado": 104500.0,
+      "titulo": {
+        "simbolo": "S31O6",
+        "descripcion": "Letra Capitalizable del Tesoro Oct-26",
+        "pais": "argentina",
+        "mercado": "bCBA",
+        "tipo": "Letras",
+        "plazo": "t1",
+        "moneda": "peso_Argentino"
+      },
+      "parking": null
+    },
+    {
+      "cantidad": 10000,
+      "comprometido": 0,
+      "puntosVariacion": 0,
+      "variacionDiaria": 0.08,
+      "ultimoPrecio": 45.3,
+      "ppc": 44.0,
+      "gananciaPorcentaje": 2.95,
+      "gananciaDinero": 13000.0,
+      "valorizado": 453000.0,
+      "titulo": {
+        "simbolo": "IOLPORA",
+        "descripcion": "IOL Portafolio Potenciado",
+        "pais": "argentina",
+        "mercado": "bCBA",
+        "tipo": "FondoComundeInversion",
+        "plazo": "t0",
+        "moneda": "peso_Argentino"
+      },
+      "parking": null
+    },
+    {
+      "cantidad": 2,
+      "comprometido": 0,
+      "puntosVariacion": 0,
+      "variacionDiaria": 3.1,
+      "ultimoPrecio": 410.0,
+      "ppc": 380.0,
+      "gananciaPorcentaje": 7.9,
+      "gananciaDinero": 6000.0,
+      "valorizado": 82000.0,
+      "titulo": {
+        "simbolo": "GFGC7000OC",
+        "descripcion": "Call GGAL 7000 Octubre",
+        "pais": "argentina",
+        "mercado": "bCBA",
+        "tipo": "Opciones",
+        "plazo": "t0",
+        "moneda": "peso_Argentino"
+      },
+      "parking": null
+    }
+  ]
+}

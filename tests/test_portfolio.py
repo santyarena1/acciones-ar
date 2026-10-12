@@ -33,9 +33,14 @@ def test_precio_limite():
 
 
 def test_riesgo_bloquea_orden_grande(settings):
+    # sin tope absoluto (política): el anti-bug es el % de la cartera cuando se pasa valor_total
     o = pd.DataFrame([{"ticker": "A", "lado": "COMPRAR", "cantidad": 10_000, "precio_ref": 1000.0}])
+    validate_orders(o, settings)
     with pytest.raises(RiskError):
-        validate_orders(o, settings)
+        validate_orders(o, settings, valor_total=20_000_000)
+    con_tope = {**settings, "riesgo": {**settings["riesgo"], "orden_maxima_ars": 2_000_000}}
+    with pytest.raises(RiskError):
+        validate_orders(o, con_tope)
 
 
 def test_riesgo_bloquea_demasiadas_ordenes(settings):

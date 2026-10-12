@@ -1,0 +1,13 @@
+{
+  "ultimoPrecio": 6520.0, "variacion": 1.32, "apertura": 6440.0, "maximo": 6560.0, "minimo": 6405.0,
+  "fechaHora": "2026-10-09T16:59:58.123", "tendencia": "sube", "cierreAnterior": 6435.0,
+  "montoOperado": 9876543210.5, "volumenNominal": 1520345, "precioPromedio": 6498.7, "moneda": "peso_Argentino",
+  "precioAjuste": 0.0, "interesesAbiertos": 0.0,
+  "puntas": [
+    {"cantidadCompra": 1200, "precioCompra": 6510.0, "precioVenta": 6530.0, "cantidadVenta": 800},
+    {"cantidadCompra": 300, "precioCompra": 6515.0, "precioVenta": 6525.0, "cantidadVenta": 150},
+    {"cantidadCompra": 50, "precioCompra": 6500.0, "precioVenta": 6540.0, "cantidadVenta": 20}
+  ],
+  "cantidadOperaciones": 8421, "descripcionTitulo": "Grupo Financiero Galicia", "plazo": "t1",
+  "laminaMinima": 1, "lote": 1
+}
