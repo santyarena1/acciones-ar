@@ -294,3 +294,26 @@ def parse_order_response(raw) -> dict:
     else:  # 2xx sin 'ok' ni número: no sabemos si entró -> no reenviar sin revisar
         estado, defecto = "incierta", "Respuesta de IOL sin confirmación: revisá las operaciones antes de reenviar."
     return {"estado": estado, "id": numero, "mensaje": _mensajes(raw) or defecto}
+
+
+def resumen_estadocuenta(raw) -> dict:
+    """Estructura de saldos para diagnosticar la lectura de caja (sin números de cuenta ni datos personales).
+    Se guarda en la base privada, nunca en logs públicos."""
+    campos = ("disponible", "comprometido", "saldo", "titulosValorizados", "total", "margenDescubierto")
+    cuentas = []
+    for c in (raw or {}).get("cuentas", []) or []:
+        cuentas.append({
+            "tipo": c.get("tipo"), "moneda": c.get("moneda"), "estado": c.get("estado"),
+            **{k: c.get(k) for k in campos if k in c},
+            "saldos": [{k: s.get(k) for k in ("liquidacion", "saldo", "comprometido", "disponible",
+                                              "disponibleOperar") if k in s} for s in c.get("saldos", []) or []],
+        })
+    return {"claves_raiz": sorted((raw or {}).keys()), "totalEnPesos": (raw or {}).get("totalEnPesos"),
+            "cuentas": cuentas}
+
+
+def resumen_portafolio(raw) -> dict:
+    activos = (raw or {}).get("activos", []) or []
+    return {"claves_raiz": sorted((raw or {}).keys()), "cantidad_activos": len(activos),
+            "tipos": sorted({str((a.get("titulo") or {}).get("tipo")) for a in activos}),
+            "claves_activo": sorted(activos[0].keys()) if activos else []}

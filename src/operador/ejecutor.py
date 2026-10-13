@@ -248,6 +248,11 @@ def _ciclo(settings: dict, universe: list[dict], modo: str, bit: Bitacora, ahora
     _seguir(bit, modo, c, aporte, settings)
     if solo_analisis:
         _guardar_aportes(bit, modo, aportes, broker)
+        if hasattr(broker, "diagnostico"):
+            try:
+                bit.registrar("diagnostico_iol", modo=modo, **broker.diagnostico())
+            except Exception as e:  # noqa: BLE001 - el diagnóstico nunca rompe la revisión
+                bit.registrar("error", modo=modo, error=f"diagnóstico IOL: {type(e).__name__}")
         return c, [], 0.0
     ords, faltante = _preparar(c, broker, bit, settings, ahora.date())
     cartera = c.meta["cartera"]
