@@ -170,24 +170,25 @@ def _cuenta_pesos(raw) -> dict | None:
 
 
 def parse_cash_ars(raw, plazo: str | None = None) -> float:
-    """Pesos disponibles para operar (nunca negativo).
+    """Pesos disponibles para operar (nunca negativo, nunca con descubierto).
 
-    Sin plazo: `disponible` de la cuenta en pesos. Con plazo (t0..t3) y si la respuesta trae
-    `saldos[]` por liquidación, usa el menor entre `disponibleOperar` y `disponible` del saldo de ese plazo
-    (t1 -> 'hrs24'), que es lo que realmente se puede usar sin tomar descubierto.
+    Formato real de IOL (verificado con cuenta real 13/10/2026): la cuenta en pesos trae `disponible` (total) y
+    `saldos[]` por liquidación (inmediato, hrs24, hrs48, hrs72, masHrs72). En cada saldo, `disponible` es lo que
+    se ACREDITA en ese plazo (incremental: puede ser 0) y `disponibleOperar` es el poder de compra para órdenes
+    con ese plazo (acumulado). Para un plazo dado se usa `disponibleOperar` de ese plazo, topeado por el
+    `disponible` total de la cuenta (si `disponibleOperar` incluyera descubierto/margen, el tope lo deja afuera).
     """
     cuenta = _cuenta_pesos(raw)
     if cuenta is None:
         return 0.0
+    total = _f(cuenta.get("disponible"))
     liquidacion = PLAZO_A_LIQUIDACION.get(plazo or "")
     if liquidacion:
         for s in cuenta.get("saldos", []) or []:
-            if s.get("liquidacion") == liquidacion:
-                # el menor de los dos: si uno incluye descubierto/margen, no lo usamos para comprar
-                valores = [v for v in (_f(s.get("disponibleOperar")), _f(s.get("disponible"))) if v is not None]
-                if valores:
-                    return max(0.0, min(valores))
-    return max(0.0, _f0(cuenta.get("disponible")))
+            if s.get("liquidacion") == liquidacion and _f(s.get("disponibleOperar")) is not None:
+                operar = _f(s.get("disponibleOperar"))
+                return max(0.0, min(operar, total) if total is not None else operar)
+    return max(0.0, total or 0.0)
 
 
 def _mejores_puntas(puntas: Any) -> dict[str, float | None]:

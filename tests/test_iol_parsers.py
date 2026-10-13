@@ -108,7 +108,9 @@ def test_parse_cash_fixture_por_plazo():
     raw = fixture("iol_estadocuenta.json")
     assert parse_cash_ars(raw) == 250000.5               # sin plazo: 'disponible' de la cuenta
     assert parse_cash_ars(raw, plazo="t0") == 235000.5   # inmediato
-    assert parse_cash_ars(raw, plazo="t1") == 295000.5   # hrs24.disponibleOperar
+    # hrs24.disponibleOperar (295k) incluye ventas que se acreditan mañana: se topea con el disponible de la
+    # cuenta (250k) -> no se compra con plata de ventas todavía no acreditadas
+    assert parse_cash_ars(raw, plazo="t1") == 250000.5
     assert parse_cash_ars({"cuentas": [{"moneda": "peso_Argentino", "disponible": 10, "saldos": []}]},
                           plazo="t1") == 10.0           # sin saldos: cae a 'disponible'
     assert parse_cash_ars({}) == 0.0
@@ -362,7 +364,7 @@ def test_iol_broker_end_to_end_con_cliente_falso():
     b = IOLBroker(fc, {"ejecucion": {"mercado": "bCBA", "plazo": "t1", "tipo_orden": "precioLimite",
                                      "feriados": ["2026-10-12"]}})
     assert set(b.get_positions()) == {"GGAL", "YPFD", "AAPL", "AL30", "YCA6O", "S31O6"}
-    assert b.get_cash_ars() == 295000.5
+    assert b.get_cash_ars() == 250000.5   # topeado por el disponible de la cuenta
     assert b.get_quote("GGAL")["precioVenta"] == 6525.0
     assert b.open_orders()[0]["numero"] == 71234567
     assert b.cancel_order(71234567) == {"estado": "cancelada", "id": 71234567, "mensaje": "Orden aceptada por IOL."}
@@ -454,3 +456,31 @@ def test_resumen_estadocuenta_sin_datos_personales():
                                                      "disponibleOperar": 500000}]}], "totalEnPesos": 500000}
     r = resumen_estadocuenta(raw)
     assert "numero" not in r["cuentas"][0] and r["cuentas"][0]["saldos"][0]["disponible"] == 500000
+
+
+ESTADOCUENTA_REAL = {  # misma estructura que devolvió IOL con una cuenta real (montos de ejemplo)
+    "totalEnPesos": 500000.0,
+    "cuentas": [
+        {"tipo": "inversion_Argentina_Pesos", "moneda": "peso_Argentino", "disponible": 500000.0,
+         "comprometido": 0.0, "saldo": 500000.0, "margenDescubierto": 0.0, "estado": "operable",
+         "saldos": [
+             {"liquidacion": "inmediato", "saldo": 500000.0, "disponible": 500000.0, "disponibleOperar": 500000.0},
+             {"liquidacion": "hrs24", "saldo": 0.0, "disponible": 0.0, "disponibleOperar": 500000.0},
+             {"liquidacion": "hrs48", "saldo": 0.0, "disponible": 0.0, "disponibleOperar": 500000.0},
+             {"liquidacion": "masHrs72", "saldo": 0.0, "disponible": 0.0, "disponibleOperar": 0.0}]},
+        {"tipo": "inversion_Argentina_Dolares", "moneda": "dolar_Estadounidense", "disponible": 0.0, "saldos": []},
+    ],
+}
+
+
+def test_caja_con_formato_real_de_iol_a_24hs():
+    assert parse_cash_ars(ESTADOCUENTA_REAL, plazo="t1") == 500000.0
+    assert parse_cash_ars(ESTADOCUENTA_REAL, plazo="t0") == 500000.0
+    assert parse_cash_ars(ESTADOCUENTA_REAL) == 500000.0
+
+
+def test_caja_no_usa_descubierto():
+    import copy
+    raw = copy.deepcopy(ESTADOCUENTA_REAL)
+    raw["cuentas"][0]["saldos"][1]["disponibleOperar"] = 800000.0     # incluiría margen
+    assert parse_cash_ars(raw, plazo="t1") == 500000.0
