@@ -4,10 +4,14 @@
     "api/operar.py": {
       "maxDuration": 300,
       "memory": 2048,
-      "includeFiles": "{src/**,config/**,db/**,data/fundamentals_manual.csv}"
+      "includeFiles": "{src/**,config/**,db/**,data/fundamentals_manual.csv}",
+      "excludeFiles": "{web/**,app/**,tests/**,docs/**,scripts/**,reports/**,.github/**,.claude/**}"
     }
   },
   "crons": [
-    { "path": "/api/operar", "schedule": "30 14-19 * * 1-5" }
+    {
+      "path": "/api/operar",
+      "schedule": "30 14-19 * * 1-5"
+    }
   ]
 }
