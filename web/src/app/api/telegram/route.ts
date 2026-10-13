@@ -80,3 +80,6 @@ async function responder(cmd: ReturnType<typeof parsearComando>): Promise<string
       return `No entendí. ${AYUDA}`;
   }
 }
+
+// "Revisar ahora" dispara el motor con after(): la función sigue viva hasta que termina (~1 min)
+export const maxDuration = 300;

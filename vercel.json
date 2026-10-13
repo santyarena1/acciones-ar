@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/operar.py": {
+      "maxDuration": 300,
+      "memory": 2048,
+      "includeFiles": "{src/**,config/**,db/**,data/fundamentals_manual.csv}"
+    }
+  },
+  "crons": [
+    { "path": "/api/operar", "schedule": "30 14-19 * * 1-5" }
+  ]
+}

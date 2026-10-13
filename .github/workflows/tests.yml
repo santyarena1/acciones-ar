@@ -20,7 +20,7 @@ jobs:
           cache: pip
 
       - name: Instalar dependencias
-        run: pip install -q -r requirements.txt
+        run: pip install -q -r requirements-dev.txt
 
       # Sin red ni base: los tests usan fixtures y SQLite temporal.
       - name: Tests

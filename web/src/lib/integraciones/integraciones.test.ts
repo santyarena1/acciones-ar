@@ -101,3 +101,28 @@ describe("telegram", () => {
     expect(JSON.parse(f.mock.calls[1]![1].body)).toMatchObject({ url: "https://x/api/telegram", secret_token: "s".repeat(20) });
   });
 });
+
+describe("dispararOperador con motor en Vercel", () => {
+  test("llama al motor con el secreto, en segundo plano", async () => {
+    vi.resetModules();
+    const tareas: Array<() => Promise<void>> = [];
+    vi.doMock("next/server", () => ({ after: (fn: () => Promise<void>) => tareas.push(fn) }));
+    vi.stubEnv("MOTOR_URL", "https://motor.example.app");
+    vi.stubEnv("MOTOR_SECRET", "secreto-del-motor");
+    const llamadas: Array<[string, RequestInit]> = [];
+    vi.stubGlobal("fetch", vi.fn(async (u: string, i: RequestInit) => {
+      llamadas.push([u, i]);
+      return new Response(null, { status: 200 });
+    }));
+    const { dispararOperador: disparar } = await import("./github");
+    expect(await disparar()).toBe("disparado");
+    expect(tareas).toHaveLength(1);
+    await tareas[0]!();
+    const [url, init] = llamadas[0]!;
+    expect(url).toBe("https://motor.example.app/api/operar?forzar=1");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer secreto-del-motor");
+    vi.doUnmock("next/server");
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+});

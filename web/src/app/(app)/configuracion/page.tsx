@@ -89,3 +89,6 @@ export default async function Configuracion() {
     </div>
   );
 }
+
+// "Revisar ahora" dispara el motor con after(): la función sigue viva hasta que termina (~1 min)
+export const maxDuration = 300;

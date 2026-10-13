@@ -1,15 +1,18 @@
 """Carga de configuración del proyecto."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "data"
+# En Vercel solo se puede escribir en /tmp: AAR_DATA_DIR / AAR_REPORTS_DIR apuntan ahí (caché efímera; lo que
+# importa vive en la base). Localmente, las carpetas del proyecto.
+DATA_DIR = Path(os.environ.get("AAR_DATA_DIR") or ROOT / "data")
 CACHE_DIR = DATA_DIR / "cache"
-REPORTS_DIR = ROOT / "reports"
+REPORTS_DIR = Path(os.environ.get("AAR_REPORTS_DIR") or ROOT / "reports")
 CORRIDAS_DIR = REPORTS_DIR / "corridas"
 
 USUARIO_PATH = DATA_DIR / "usuario.yaml"   # preferencias que se eligen desde la app (perfil, modo, etc.)
