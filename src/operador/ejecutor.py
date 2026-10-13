@@ -261,14 +261,20 @@ def _ciclo(settings: dict, universe: list[dict], modo: str, bit: Bitacora, ahora
 
 
 def operar(settings: dict, universe: list[dict], modo: str | None = None, forzar_horario: bool = False,
-           bitacora: Bitacora | None = None) -> Resultado:
+           bitacora: Bitacora | None = None, solo_analisis: bool = False) -> Resultado:
+    """`solo_analisis`: lee la cuenta, analiza y guarda el plan SIN mandar órdenes, aunque el mercado esté abierto
+    (para verificar qué haría el operador sin riesgo)."""
     modo = modo or settings.get("operador", {}).get("modo", "paper")
     bit = bitacora or abrir_bitacora()
     ahora = ahora_ar()
     try:
         with bit.candado():
             procesar_comandos(bit, settings)
-            temprano, solo_analisis = _salteo(bit, modo, forzar_horario, ahora)
+            if solo_analisis:
+                bit.registrar("salteo", modo=modo, motivo="revisión solo análisis: sin órdenes")
+                temprano = None
+            else:
+                temprano, solo_analisis = _salteo(bit, modo, forzar_horario, ahora)
             if temprano:
                 return temprano
             c, enviadas, faltante = _ciclo(settings, universe, modo, bit, ahora, solo_analisis)
@@ -297,7 +303,7 @@ def _resumen_diario(bit: Bitacora, modo: str, ahora) -> None:
 def _cerrar_analisis(bit: Bitacora, modo: str, c) -> Resultado:
     bit.registrar("corrida", modo=modo, corrida=c.stamp, ordenes=0, solo_analisis=True,
                   regimen=c.meta["macro"].get("regimen"), valor_total=c.meta["cartera"]["valor_total"])
-    return Resultado("analizado", "Mercado cerrado: se hizo el análisis, sin enviar órdenes.", [], None, c.stamp)
+    return Resultado("analizado", "Se hizo el análisis, sin enviar órdenes.", [], None, c.stamp)
 
 
 def _cerrar(bit: Bitacora, modo: str, c, enviadas: list[dict], pedido: dict | None) -> Resultado:
