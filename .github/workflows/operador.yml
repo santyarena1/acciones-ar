@@ -14,6 +14,10 @@ on:
         description: "Revisar ahora aunque el mercado esté cerrado (en modo real solo analiza: nunca manda órdenes)"
         type: boolean
         default: false
+      solo_analisis:
+        description: "Solo análisis: lee la cuenta y arma el plan SIN mandar ninguna orden (aunque el mercado esté abierto)"
+        type: boolean
+        default: false
 
 concurrency:
   group: operador
@@ -67,4 +71,4 @@ jobs:
           if [ "$(date +%u)" -le 2 ]; then python main.py reportes; else echo "[ok] hoy no hay reporte semanal"; fi
 
       - name: Operar
-        run: python main.py operar ${{ inputs.forzar && '--forzar' || '' }}
+        run: python main.py operar ${{ inputs.forzar && '--forzar' || '' }} ${{ inputs.solo_analisis && '--solo-analisis' || '' }}

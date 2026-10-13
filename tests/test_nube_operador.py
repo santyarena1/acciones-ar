@@ -138,6 +138,21 @@ def test_revision_forzada_con_mercado_cerrado_en_real_solo_analiza(base_sqlite, 
     assert r2.estado == "cerrado"
 
 
+def test_solo_analisis_con_mercado_abierto_en_real_no_manda_ordenes(base_sqlite, settings, avisos, monkeypatch):
+    import src.servicio as servicio
+    bit = BitacoraDB()
+    bit.guardar_estado(modo_real={"habilitado": True})
+    monkeypatch.setattr(ej, "mercado_abierto", lambda *a, **k: True)       # mercado ABIERTO
+    monkeypatch.setattr(ej, "feriados_ar", lambda: set())
+    monkeypatch.setattr(ej, "_precios_benchmark", lambda c: {})
+    monkeypatch.setattr(servicio, "crear_broker", lambda *a, **k: BrokerRealFalso())
+    monkeypatch.setattr(servicio, "correr", _corrida_falsa)                # el plan tiene una compra
+    r = ej.operar(_settings(settings, "live"), [], solo_analisis=True, bitacora=bit)
+    assert r.estado == "analizado" and r.enviadas == []
+    assert not bit.eventos(tipo="orden") and not bit.eventos(tipo="intento_orden")
+    assert bit.eventos(tipo="corrida")[-1]["solo_analisis"] is True
+
+
 # ----------------------------------------------------------------------------- resumen diario
 LUNES_1630 = datetime(2026, 10, 12, 16, 30)
 

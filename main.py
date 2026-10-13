@@ -139,7 +139,8 @@ def cmd_operar(args, settings, universe):
     """Un ciclo del operador automático. Real solo si las preferencias piden modo real y el dueño lo habilitó."""
     from src.operador.ejecutor import operar
 
-    r = operar(settings, universe, modo=args.modo, forzar_horario=args.forzar_horario)
+    r = operar(settings, universe, modo=args.modo, forzar_horario=args.forzar_horario,
+               solo_analisis=args.solo_analisis)
     if salida.silenciosa():
         salida.estado(salida.linea_operar(r.estado, len(r.enviadas), bool(r.pedido_fondos)))
         sys.exit(1 if r.estado == "error" else 0)
@@ -260,6 +261,8 @@ def _main(argv=None):
     p.add_argument("--modo", choices=["paper", "live"], default=None, help="por defecto: operador.modo en settings")
     p.add_argument("--forzar-horario", "--forzar", action="store_true",
                    help="correr aunque el mercado esté cerrado (en modo real solo analiza, sin órdenes)")
+    p.add_argument("--solo-analisis", action="store_true",
+                   help="leer la cuenta y armar el plan sin mandar NINGUNA orden, aunque el mercado esté abierto")
     sub.add_parser("reportes"); sub.add_parser("login-test"); sub.add_parser("app")
     sub.add_parser("db-init", help="aplica db/schema.sql en la base (DATABASE_URL)")
 
