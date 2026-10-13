@@ -1,0 +1,6 @@
+# Desarrollo local: motor + app vieja (Streamlit) + pruebas
+-r requirements.txt
+streamlit>=1.38
+plotly>=5.22
+pytest>=8.0
+ruff>=0.6

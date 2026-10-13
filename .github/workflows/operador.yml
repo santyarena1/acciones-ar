@@ -5,9 +5,8 @@
 name: Operador
 
 on:
-  schedule:
-    # 11:30 a 16:30 hora Argentina (UTC-3 todo el año), lunes a viernes. Feriados se chequean adentro.
-    - cron: "30 14-19 * * 1-5"
+  # El reloj del operador es el cron de Vercel (proyecto acciones-ar-motor, vercel.json). Este workflow queda
+  # como respaldo manual (los schedules de GitHub se atrasan horas o se saltean).
   workflow_dispatch:
     inputs:
       forzar:

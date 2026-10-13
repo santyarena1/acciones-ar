@@ -19,7 +19,7 @@ from datetime import date
 
 import pandas as pd
 
-from ..config import CACHE_DIR, DATA_DIR
+from ..config import CACHE_DIR, ROOT
 
 METRICAS = ["pe", "ev_ebitda", "pb", "roe", "operating_margin", "net_debt_ebitda", "revenue_growth", "fcf_yield"]
 CACHE = CACHE_DIR / "fundamentales.json"
@@ -78,7 +78,7 @@ def sanear(m: dict, limites: dict | None = None) -> dict:
 
 
 def load_manual(path=None) -> dict[str, dict]:
-    p = path or DATA_DIR / "fundamentals_manual.csv"
+    p = path or ROOT / "data" / "fundamentals_manual.csv"   # versionado en el repo (no en la caché)
     try:
         df = pd.read_csv(p)
     except (FileNotFoundError, pd.errors.EmptyDataError):
