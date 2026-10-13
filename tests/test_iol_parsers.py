@@ -445,3 +445,12 @@ def test_place_order_no_lanza_y_distingue_incierta_de_rechazada():
     assert b.place_order("AL30", "COMPRAR", 100, 86600.0, mult=0.01)["estado"] == "incierta"
     b2 = IOLBroker(_ClienteQueFalla(IOLError("HTTP 400")), {})
     assert b2.place_order("AL30", "COMPRAR", 100, 86600.0, mult=0.01)["estado"] == "rechazada"
+
+
+def test_resumen_estadocuenta_sin_datos_personales():
+    from src.broker.iol_parsers import resumen_estadocuenta
+    raw = {"cuentas": [{"numero": "123", "tipo": "inversion_Argentina_Pesos", "moneda": "peso_Argentino",
+                        "disponible": 0, "saldos": [{"liquidacion": "inmediato", "disponible": 500000,
+                                                     "disponibleOperar": 500000}]}], "totalEnPesos": 500000}
+    r = resumen_estadocuenta(raw)
+    assert "numero" not in r["cuentas"][0] and r["cuentas"][0]["saldos"][0]["disponible"] == 500000

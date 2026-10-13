@@ -351,6 +351,12 @@ class IOLBroker(Broker):
     def get_cash_ars(self) -> float:
         return parse_cash_ars(self.client.account_status(), plazo=self.plazo)
 
+    def diagnostico(self) -> dict:
+        """Cómo informa IOL los saldos y la cartera (para verificar la lectura; va a la base privada)."""
+        from .iol_parsers import resumen_estadocuenta, resumen_portafolio
+        return {"estadocuenta": resumen_estadocuenta(self.client.account_status()),
+                "portafolio": resumen_portafolio(self.client.portfolio()), "plazo": self.plazo}
+
     def get_quote(self, ticker: str) -> dict | None:
         return parse_quote(self.client.quote(ticker, mercado=self.mercado))
 
