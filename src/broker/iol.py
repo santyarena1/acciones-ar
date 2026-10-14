@@ -128,7 +128,7 @@ class IOLClient:
         self.username = username or os.getenv("IOL_USERNAME")
         self.password = password or os.getenv("IOL_PASSWORD")
         if not self.username or not self.password:
-            raise IOLError("Faltan IOL_USERNAME / IOL_PASSWORD (completá el .env).")
+            raise IOLError("Faltan IOL_USERNAME / IOL_PASSWORD: cargalos en Configuración de la app (o en el .env si corrés local).")
         self.timeout = timeout
         self.max_reintentos = max(0, int(max_reintentos))
         self.backoff_base = max(0.0, float(backoff_base))
