@@ -9,6 +9,8 @@ import { rendimiento } from "@/lib/domain/estado";
 import { TIPOS_MOVIMIENTO } from "@/lib/domain/eventos";
 import { esSoloInformativo, fechasCortas, humanizar, textoPedidoFondos } from "@/lib/domain/textos";
 import { contextoApp } from "@/lib/data/contexto";
+import { secretosCargados } from "@/lib/data/secretos";
+import { problemaOperador } from "@/lib/domain/problemas";
 import { eventosRecientes, fotos } from "@/lib/data/eventos";
 import { fechaCorta, fechaLarga, haceCuanto, pct, plata, pp } from "@/lib/format";
 import { nombre, ORDEN_CLASES, REGIMEN } from "@/lib/labels";
@@ -19,13 +21,33 @@ export const metadata = { title: "Inicio" };
 export default async function Inicio() {
   const ctx = await contextoApp();
   const { corrida: c, estado, modo } = ctx;
-  const [serie, movimientos] = await Promise.all([
+  const [serie, movimientos, cargados, ultimos] = await Promise.all([
     fotos(modo),
     eventosRecientes({ tipos: TIPOS_MOVIMIENTO, modo, limite: 6 }),
+    secretosCargados(),
+    eventosRecientes({ tipos: ["error", "corrida"], modo, limite: 1 }),
   ]);
+  const ultimo = ultimos[0];
+  const problema = problemaOperador({
+    modo,
+    iolConectado: Boolean(cargados.IOL_USERNAME && cargados.IOL_PASSWORD),
+    ultimo: ultimo
+      ? { tipo: ultimo.tipo, ts: ultimo.ts, error: typeof ultimo.datos.error === "string" ? ultimo.datos.error : null }
+      : null,
+  });
 
   const avisos = (
     <div className="grid gap-2.5 pt-5 lg:pt-8">
+      {problema ? (
+        <Aviso tono="peligro" titulo={problema.titulo}>
+          {problema.texto}{" "}
+          {problema.enlace ? (
+            <Link className="font-medium underline underline-offset-4" href={problema.enlace.href}>
+              {problema.enlace.texto}
+            </Link>
+          ) : null}
+        </Aviso>
+      ) : null}
       {estado.pausado ? (
         <Aviso tono="alerta" titulo="El operador está en pausa">
           No compra ni vende hasta que lo reanudes desde <Link className="underline underline-offset-4" href="/configuracion#pausa">Configuración</Link>.
